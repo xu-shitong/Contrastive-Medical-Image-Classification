@@ -9,25 +9,24 @@ Original file is located at
 # Download
 """
 
-WORKING_ENV = 'COLAB' # Can be LABS, COLAB or PAPERSPACE
+WORKING_ENV = 'LABS' # Can be LABS, COLAB or PAPERSPACE
 assert WORKING_ENV in ['LABS', 'COLAB', 'LOCAL']
 
 import sys
 if WORKING_ENV == 'COLAB':
   from google.colab import drive
   drive.mount('/content/drive/')
-  !pip install medmnist
-  !pip install torch
-  !pip install gputil
-  !pip install psutil
-  !pip install humanize
-  ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
-  sys.path.append(ROOT + "./moco/")
+  # !pip install medmnist
+  # !pip install torch
+  # !pip install gputil
+  # !pip install psutil
+  # !pip install humanize
+  # ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
+  # sys.path.append(ROOT + "./moco/")
 elif WORKING_ENV == 'LABS':
   ROOT = "/vol/bitbucket/sx119/Contrastive-Medical-Image-Classification/"
 else:
   ROOT = "/Users/xushitong/Contrastive-Medical-Image-Classification/"
-# sys.path.append(ROOT)
 
 """# Import"""
 
@@ -75,13 +74,14 @@ mem_report()
 """# Hyperparameters"""
 
 EPOCH_NUM = 1
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9
 
 trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}"
-arg_command = f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}/datasets".split("_")
+arg_command = f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
 
+print(f"Running command {arg_command}")
 #!/usr/bin/env python
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
@@ -203,10 +203,10 @@ class AverageMeter(object):
 
 class ProgressMeter(object):
     def __init__(self, file_name, num_batches, meters, prefix=""):
-        if WORKING_ENV in ["COLAB", "LOCAL"]:
-          self.file = sys.stdout
+        if WORKING_ENV == 'LABS':
+            self.file = open(file_name+".txt", "a")
         else:
-          self.file = open(file_name+".txt", "a"), 
+            self.file = sys.stdout
         self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
         self.meters = meters
         self.prefix = prefix
@@ -214,12 +214,16 @@ class ProgressMeter(object):
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        self.file.write('\t'.join(entries))
+        self.file.write('\t'.join(entries) + "\n")
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+
+    def close(self):
+        if WORKING_ENV == 'LABS':
+            self.file.close()
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -334,8 +338,9 @@ for epoch in range(args.start_epoch, args.epochs):
 
     end = time.time()
     with tqdm.tqdm(train_loader, unit="batch") as tepoch: 
+      if WORKING_ENV == "LABS":
+        tepoch = train_loader
       for i, (images, _) in enumerate(tepoch):
-    # for i, (images, _) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -367,9 +372,8 @@ for epoch in range(args.start_epoch, args.epochs):
 
         if i % args.print_freq == 0:
             progress.display(i)
-        
-        # if running experiment locally, break after one batch
-        if WORKING_ENV == "LOCAL":
+
+        if i > 2:
           break
 
 
