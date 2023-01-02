@@ -75,7 +75,7 @@ mem_report()
 """# Hyperparameters"""
 
 EPOCH_NUM = 1
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9
 
@@ -381,15 +381,6 @@ for epoch in range(args.start_epoch, args.epochs):
     #         'state_dict': model.state_dict(),
     #         'optimizer' : optimizer.state_dict(),
     #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
-
-model.train()
-for i, (images, _) in enumerate(train_loader):
-  break
-if args.gpu is not None:
-  images[0] = images[0].cuda(args.gpu, non_blocking=True)
-  images[1] = images[1].cuda(args.gpu, non_blocking=True)
-print(images[0].shape, images[1].shape)
-output, target = model(im_q=images[0], im_k=images[1])
 
 mem_report()
 
