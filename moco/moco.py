@@ -73,13 +73,13 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 1
+EPOCH_NUM = 200
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9
 
 trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}"
-arg_command = f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
+arg_command = f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
 
 print(f"Running command {arg_command}")
 #!/usr/bin/env python
@@ -202,11 +202,8 @@ class AverageMeter(object):
 
 
 class ProgressMeter(object):
-    def __init__(self, file_name, num_batches, meters, prefix=""):
-        if WORKING_ENV == 'LABS':
-            self.file = open(file_name+".txt", "a")
-        else:
-            self.file = sys.stdout
+    def __init__(self, file, num_batches, meters, prefix=""):
+        self.file = file
         self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
         self.meters = meters
         self.prefix = prefix
@@ -220,10 +217,6 @@ class ProgressMeter(object):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
-
-    def close(self):
-        if WORKING_ENV == 'LABS':
-            self.file.close()
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -253,6 +246,18 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
+
+def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
+    """Update loss, top1, top5 metrics for either train or validation
+    Inputs:
+      - step_size: parameter n for loss/top1/top5 meters
+    """
+    # acc1/acc5 are (K+1)-way contrast classifier accuracy
+    # measure accuracy and record loss
+    acc1, acc5 = accuracy(output, target, topk=(1, 5))
+    losses.update(loss.item(), step_size)
+    top1.update(acc1[0], step_size)
+    top5.update(acc5[0], step_size)
 
 """# Dataset"""
 
@@ -293,7 +298,16 @@ train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=args.batch_size, shuffle=True, 
     pin_memory=True, drop_last=True)
 
+val_loader = torch.utils.data.DataLoader(
+    val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
+    pin_memory=True, drop_last=True)
+
 """# Train"""
+
+if WORKING_ENV == 'LABS':
+  summary = open(trial_name + ".txt", "a")
+else:
+  summary = sys.stdout
 
 print("=> creating model '{}'".format(args.arch))
 model = builder.MoCo(
@@ -321,16 +335,16 @@ for epoch in range(args.start_epoch, args.epochs):
     # train for one epoch
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
-    losses = AverageMeter('TestLoss', ':.4e')
+    losses = AverageMeter('TrainLoss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
     val_losses = AverageMeter('ValLoss', ':.4e')
-    val_top1 = AverageMeter('Acc@1', ':6.2f')
-    val_top5 = AverageMeter('Acc@5', ':6.2f')
+    val_top1 = AverageMeter('ValAcc@1', ':6.2f')
+    val_top5 = AverageMeter('ValAcc@5', ':6.2f')
     progress = ProgressMeter(
-        trial_name,
+        summary,
         len(train_loader),
-        [batch_time, data_time, losses, top1, top5],
+        [batch_time, data_time, losses, top1, top5, val_losses, val_top1, val_top5],
         prefix="Epoch: [{}]".format(epoch))
 
     # switch to train mode
@@ -357,25 +371,34 @@ for epoch in range(args.start_epoch, args.epochs):
         loss.backward()
         optimizer.step()
 
-        # acc1/acc5 are (K+1)-way contrast classifier accuracy
-        # measure accuracy and record loss
-        model.eval() # TODO: ?is this necessary
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        model.train() # TODO: delete if eval is not necessary
-        losses.update(loss.item(), images[0].size(0))
-        top1.update(acc1[0], images[0].size(0))
-        top5.update(acc5[0], images[0].size(0))
+        update_accuracy_meters(losses, top1, top5, output, target, loss, images[0].size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
-            progress.display(i)
+        if not WORKING_ENV == 'LABS':
+          tepoch.set_description(f"batch {i}")
+          tepoch.set_postfix(
+                            loss=loss.val,
+                            top1=top1.val,
+                            top5=top5.val)
 
-        if i > 2:
-          break
-
+        if i % args.print_freq == 0 and not i == 0:
+          with torch.no_grad():
+            model.eval()
+            # evaluate on validation set
+            for (images, _) in val_loader:
+              if args.gpu is not None:
+                images[0] = images[0].cuda(args.gpu, non_blocking=True)
+                images[1] = images[1].cuda(args.gpu, non_blocking=True)
+              output, target = model(im_q=images[0], im_k=images[1])
+              loss = criterion(output, target)
+              update_accuracy_meters(val_losses, val_top1, val_top5, output, target, loss, images[0].size(0))
+            
+            model.train()
+          
+          progress.display(i)
 
     # if not args.multiprocessing_distributed or (args.multiprocessing_distributed
     #         and args.rank % ngpus_per_node == 0):
@@ -385,6 +408,11 @@ for epoch in range(args.start_epoch, args.epochs):
     #         'state_dict': model.state_dict(),
     #         'optimizer' : optimizer.state_dict(),
     #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
+
+if WORKING_ENV == 'LABS':
+  summary.close()
+
+torch.save(model, "model.pickle")
 
 mem_report()
 

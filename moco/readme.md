@@ -6,7 +6,12 @@
   - swapped ordering of eval and optimizer.step 
   - support one gpu process first, then multiple gpu
     - remove all concate_all_gather, test on colab with local builder code
-  - TODO: new error saved in ipynb file
-
-1. one processing one batch of 256 samples, COLAB memory excceeded
-  - might be able to use 128 sample
+2. improvements
+  - one processing one batch of 256 samples, COLAB memory excceeded
+    - using 128 sample
+  - add validation code
+  - print loss at each epoch
+  - TODO: is pinned memory in dataloader necessary?
+  - TODO: avoid print in the first batch
+  - TODO: should not use original code, positive sample should from the same category!
+  - TODO: might cannot use validation, due to model change its comparison queue
