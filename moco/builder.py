@@ -112,7 +112,7 @@ class MoCo(nn.Module):
 
         return x_gather[idx_this]
 
-    def forward(self, im_q, im_k):
+    def forward(self, im_q, im_k, train=True):
         """
         Input:
             im_q: a batch of query images
@@ -154,8 +154,9 @@ class MoCo(nn.Module):
         # labels: positive key indicators
         labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
 
-        # dequeue and enqueue
-        self._dequeue_and_enqueue(k)
+        if train == False:
+          # dequeue and enqueue
+          self._dequeue_and_enqueue(k)
 
         return logits, labels
 

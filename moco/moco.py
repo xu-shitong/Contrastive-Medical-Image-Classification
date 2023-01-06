@@ -9,7 +9,7 @@ Original file is located at
 # Download
 """
 
-WORKING_ENV = 'LABS' # Can be LABS, COLAB or PAPERSPACE
+WORKING_ENV = 'LOCAL' # Can be LABS, COLAB or PAPERSPACE
 assert WORKING_ENV in ['LABS', 'COLAB', 'LOCAL']
 
 import sys
@@ -82,6 +82,7 @@ trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MO
 arg_command = f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
 
 print(f"Running command {arg_command}")
+
 #!/usr/bin/env python
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
@@ -247,6 +248,7 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
+
 def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
     """Update loss, top1, top5 metrics for either train or validation
     Inputs:
@@ -297,7 +299,6 @@ val_dataset = medmnist.PathMNIST("val", download=False, root=args.data,
 train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=args.batch_size, shuffle=True, 
     pin_memory=True, drop_last=True)
-
 val_loader = torch.utils.data.DataLoader(
     val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
@@ -392,13 +393,14 @@ for epoch in range(args.start_epoch, args.epochs):
               if args.gpu is not None:
                 images[0] = images[0].cuda(args.gpu, non_blocking=True)
                 images[1] = images[1].cuda(args.gpu, non_blocking=True)
-              output, target = model(im_q=images[0], im_k=images[1])
+              output, target = model(im_q=images[0], im_k=images[1], train=False)
               loss = criterion(output, target)
               update_accuracy_meters(val_losses, val_top1, val_top5, output, target, loss, images[0].size(0))
             
             model.train()
           
           progress.display(i)
+
 
     # if not args.multiprocessing_distributed or (args.multiprocessing_distributed
     #         and args.rank % ngpus_per_node == 0):
