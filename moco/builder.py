@@ -112,17 +112,16 @@ class MoCo(nn.Module):
 
         return x_gather[idx_this]
 
-    def forward(self, im_q, im_k, train=True):
+    def forward(self, img, train=True):
         """
         Input:
-            im_q: a batch of query images
-            im_k: a batch of key images
+            img: a batch of query images
         Output:
             logits, targets
         """
 
         # compute query features
-        q = self.encoder_q(im_q)  # queries: NxC
+        q = self.encoder_q(img)  # queries: NxC
         q = nn.functional.normalize(q, dim=1)
 
         # compute key features
@@ -132,7 +131,7 @@ class MoCo(nn.Module):
             # # shuffle for making use of BN
             # im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
 
-            k = self.encoder_k(im_k)  # keys: NxC
+            k = self.encoder_k(img)  # keys: NxC
             k = nn.functional.normalize(k, dim=1)
 
             # # undo shuffle
