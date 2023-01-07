@@ -9,7 +9,7 @@ Original file is located at
 # Download
 """
 
-WORKING_ENV = 'LOCAL' # Can be LABS, COLAB or PAPERSPACE
+WORKING_ENV = 'LABS' # Can be LABS, COLAB or PAPERSPACE
 assert WORKING_ENV in ['LABS', 'COLAB', 'LOCAL']
 
 import sys
@@ -23,7 +23,7 @@ if WORKING_ENV == 'COLAB':
   # !pip install humanize
   # ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
   # sys.path.append(ROOT + "./moco/")
-  !nvidia-smi
+  # !nvidia-smi
 elif WORKING_ENV == 'LABS':
   ROOT = "/vol/bitbucket/sx119/Contrastive-Medical-Image-Classification/"
 else:
@@ -78,9 +78,12 @@ EPOCH_NUM = 200
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9
+MULTI_POSITIVE_PAIR = 0
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}"
-arg_command = f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_multi-pos{MULTI_POSITIVE_PAIR}"
+arg_command = \
+f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100\
+_--multi-pos-pair_{MULTI_POSITIVE_PAIR}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
 
 print(f"Running command {arg_command}")
 
@@ -140,6 +143,10 @@ parser.add_argument('--gpu', default=None, type=int,
 #                          'N processes per node, which has N GPUs. This is the '
 #                          'fastest way to use PyTorch for either single node or '
 #                          'multi node data parallel training')
+# new argument proposed for medical image classification
+parser.add_argument('-mp', '--multi-pos-pair', default=0, type=int, metavar='N',
+                    help='set to 0 if positive pairs are from the same image'
+                    'otherwise positive pairs are images from the same category')
 
 # moco specific configs:
 parser.add_argument('--moco-dim', default=128, type=int,
@@ -359,7 +366,11 @@ for epoch in range(args.start_epoch, args.epochs):
     with tqdm.tqdm(train_loader, unit="batch") as tepoch: 
       if WORKING_ENV == "LABS":
         tepoch = train_loader
-      for i, (images, _) in enumerate(tepoch):
+      for i, (images, labels) in enumerate(tepoch):
+        # set label, if no label given, positive pair is image itself
+        if args.multi_pos_pair == 0:
+          labels = None
+
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -367,7 +378,7 @@ for epoch in range(args.start_epoch, args.epochs):
             images = images.cuda(args.gpu, non_blocking=True)
 
         # compute output
-        output, target = model(img=images)
+        output, target = model(img=images, labels=labels)
         loss = criterion(output, target)
 
         # compute gradient and do SGD step
@@ -391,10 +402,12 @@ for epoch in range(args.start_epoch, args.epochs):
           with torch.no_grad():
             model.eval()
             # evaluate on validation set
-            for (images, _) in val_loader:
+            for (images, labels) in val_loader:
+              if args.multi_pos_pair == 0:
+                labels = None
               if args.gpu is not None:
                 images = images.cuda(args.gpu, non_blocking=True)
-              output, target = model(img=images, train=False)
+              output, target = model(img=images, labels=labels, train=False)
               loss = criterion(output, target)
               # update_accuracy_meters(val_losses, val_top1, val_top5, output, target, loss, images[0].size(0))
               val_losses.update(loss.item(), images.size(0))
@@ -416,7 +429,7 @@ for epoch in range(args.start_epoch, args.epochs):
 if WORKING_ENV == 'LABS':
   summary.close()
 
-torch.save(model, "model.pickle")
+torch.save(model, f"{trial_name}.pickle")
 
 mem_report()
 

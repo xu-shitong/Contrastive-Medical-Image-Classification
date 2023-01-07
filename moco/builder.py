@@ -37,6 +37,7 @@ class MoCo(nn.Module):
 
         # create the queue
         self.register_buffer("queue", torch.randn(dim, K))
+        self.register_buffer("queue_label", torch.zeros(1, K))
         self.queue = nn.functional.normalize(self.queue, dim=0)
 
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
@@ -50,7 +51,12 @@ class MoCo(nn.Module):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
     @torch.no_grad()
-    def _dequeue_and_enqueue(self, keys):
+    def _dequeue_and_enqueue(self, keys, labels=None):
+        """
+          Input:
+          keys: shape: [batch_size, dim]
+          labels: shape: [batch_size, 1], or None if positive sample pair is from the same image
+        """
         # # gather keys before updating queue
         # keys = concat_all_gather(keys)
 
@@ -61,6 +67,9 @@ class MoCo(nn.Module):
 
         # replace the keys at ptr (dequeue and enqueue)
         self.queue[:, ptr:ptr + batch_size] = keys.T
+        if labels is not None:
+          self.queue_label[0, ptr:ptr + batch_size] = labels.T
+
         ptr = (ptr + batch_size) % self.K  # move pointer
 
         self.queue_ptr[0] = ptr
@@ -112,12 +121,14 @@ class MoCo(nn.Module):
 
         return x_gather[idx_this]
 
-    def forward(self, img, train=True):
+    def forward(self, img, labels=None, train=True):
         """
         Input:
             img: a batch of query images
+            label: category label of each image, shape: [batch_size, 1]
         Output:
-            logits, targets
+            logits: shape: [batch_size, 1 + K]
+            targets: shape: [batch_size, 1 + K]
         """
 
         # compute query features
@@ -150,13 +161,21 @@ class MoCo(nn.Module):
         # apply temperature
         logits /= self.T
 
-        # labels: positive key indicators
-        labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
-
-        if train == False:
+        if train:
           # dequeue and enqueue
-          self._dequeue_and_enqueue(k)
+          self._dequeue_and_enqueue(k, labels)
 
+        # labels: positive key indicators
+        if labels is None:
+          # positive key is always image itself at index 0
+          labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
+        else:
+          # positive key are images with same category
+          labels = torch.cat([
+              torch.ones((logits.shape[0], 1), dtype=torch.float32).cuda(), 
+              (labels.cuda() == self.queue_label).float()]
+              , dim=1)
+            
         return logits, labels
 
 

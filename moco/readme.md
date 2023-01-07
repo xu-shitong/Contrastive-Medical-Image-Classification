@@ -16,5 +16,5 @@
   - TODO: is pinned memory in dataloader necessary?
   - TODO: preload queue with samples (did paper mentioned the operation?)
 
-
+copyright remove?
 find follow-up work method?
