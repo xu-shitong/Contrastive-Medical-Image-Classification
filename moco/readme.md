@@ -10,9 +10,12 @@
   - add validation code
   - print loss at each epoch
   - remove top n evaluation metric
-3. unsure improvements:
+  - visualize training loss
+  - TODO: implement t-sne
+1. unsure improvements:
   - remove crop data argumentation, and avoid crop to get different input for key and query, significantly faster but might cause low performance
   - should not use original code, positive sample should from the same category. result in 2 implementations
+    - TODO: validation loss needs reviewing, too close to the , maybe should not compare to the queue from training sample 
   - TODO: is pinned memory in dataloader necessary?
   - TODO: preload queue with samples (did paper mentioned the operation?)
 

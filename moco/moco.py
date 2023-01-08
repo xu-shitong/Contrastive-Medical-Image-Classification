@@ -167,6 +167,7 @@ parser.add_argument('--cos', action='store_true',
                     help='use cosine lr schedule')
 
 args = parser.parse_args(arg_command)
+args.multi_pos_pair = (not args.multi_pos_pair == 0)
 
 if args.seed is not None:
     random.seed(args.seed)
@@ -269,6 +270,28 @@ def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
     top1.update(acc1[0], step_size)
     top5.update(acc5[0], step_size)
 
+def criterion(prediction, target):
+    """
+    Generic loss to handle multi-label classification when multiple positive 
+    image pairs exist
+    
+    Inputs: 
+      - pretiction: shape: [bathc_size, 1 + k]
+      - target: [batch_size] if one positive pair, otherwise [batch_size, 1 + K]
+      
+    Outputs:
+      - scalar loss value
+    """
+    loss_func = nn.CrossEntropyLoss(reduction="none")
+    if args.gpu is not None:
+      loss_func = loss_func.cuda(args.gpu)
+    
+    loss = loss_func(prediction, target)
+    if args.multi_pos_pair:
+      loss /= target.sum(dim=-1)
+    
+    return loss.mean()
+
 """# Dataset"""
 
 # Data loading code
@@ -329,9 +352,6 @@ model = builder.MoCo(
 if args.gpu is not None:
   torch.cuda.set_device(args.gpu)
   model = model.cuda(args.gpu)
-  criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-else:
-  criterion = nn.CrossEntropyLoss()
 
 optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
@@ -368,7 +388,7 @@ for epoch in range(args.start_epoch, args.epochs):
         tepoch = train_loader
       for i, (images, labels) in enumerate(tepoch):
         # set label, if no label given, positive pair is image itself
-        if args.multi_pos_pair == 0:
+        if not args.multi_pos_pair:
           labels = None
 
         # measure data loading time
@@ -403,7 +423,7 @@ for epoch in range(args.start_epoch, args.epochs):
             model.eval()
             # evaluate on validation set
             for (images, labels) in val_loader:
-              if args.multi_pos_pair == 0:
+              if not args.multi_pos_pair:
                 labels = None
               if args.gpu is not None:
                 images = images.cuda(args.gpu, non_blocking=True)
