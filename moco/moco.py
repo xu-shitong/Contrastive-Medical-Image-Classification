@@ -270,7 +270,7 @@ def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
     top1.update(acc1[0], step_size)
     top5.update(acc5[0], step_size)
 
-def criterion(prediction, target):
+def multi_label_loss(prediction, target):
     """
     Generic loss to handle multi-label classification when multiple positive 
     image pairs exist
@@ -352,6 +352,9 @@ model = builder.MoCo(
 if args.gpu is not None:
   torch.cuda.set_device(args.gpu)
   model = model.cuda(args.gpu)
+  criterion = nn.CrossEntropyLoss().cuda(args.gpu)
+else:
+  criterion = nn.CrossEntropyLoss()
 
 optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
@@ -418,7 +421,7 @@ for epoch in range(args.start_epoch, args.epochs):
           tepoch.set_postfix(loss=loss.item())
 
         # log performance
-        if i % args.print_freq == 0 and not i == 0:
+        if i % args.print_freq == 0:
           with torch.no_grad():
             model.eval()
             # evaluate on validation set
