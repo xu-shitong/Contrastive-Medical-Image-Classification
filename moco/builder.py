@@ -88,7 +88,7 @@ class MoCo(nn.Module):
         num_gpus = batch_size_all // batch_size_this
 
         # random shuffle index
-        idx_shuffle = torch.randperm(batch_size_all).cuda()
+        idx_shuffle = torch.randperm(batch_size_all).to(self.queue_label)
 
         # broadcast to all gpus
         torch.distributed.broadcast(idx_shuffle, src=0)
@@ -168,12 +168,12 @@ class MoCo(nn.Module):
         # labels: positive key indicators
         if labels is None:
           # positive key is always image itself at index 0
-          labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
+          labels = torch.zeros(logits.shape[0]).to(self.queue_label).type(torch.int64)
         else:
           # positive key are images with same category
           labels = torch.cat([
-              torch.ones((logits.shape[0], 1), dtype=torch.float32).cuda(), 
-              (labels.cuda() == self.queue_label).float()]
+              torch.ones((logits.shape[0], 1)).to(self.queue_label).type(torch.float32), 
+              (labels.to(self.queue_label) == self.queue_label).type(torch.float32)]
               , dim=1)
             
         return logits, labels

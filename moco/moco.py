@@ -427,7 +427,7 @@ for epoch in range(args.start_epoch, args.epochs):
           tepoch.set_postfix(loss=loss.item())
 
         # log performance
-        if i % args.print_freq == 0:
+        if i % args.print_freq == 0 and not i == 0:
           with torch.no_grad():
             model.eval()
             # evaluate on validation set
