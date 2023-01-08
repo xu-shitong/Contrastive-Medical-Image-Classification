@@ -16,10 +16,11 @@
 1. unsure improvements:
   - remove crop data argumentation, and avoid crop to get different input for key and query, significantly faster but might cause low performance
   - should not use original code, positive sample should from the same category. result in 2 implementations
-    - NEED GUIDE: multi-label loss result in high loss, difficult to compare, possible solution is to log different loss with backwarded loss
+    - NEED GUIDE: multi-label loss result in high loss, might be difficult to compare
     - TODO: validation loss needs reviewing, too close to the training loss, maybe should not compare to the queue from training sample 
   - TODO: is pinned memory in dataloader necessary?
   - TODO: preload queue with samples (did paper mentioned the operation?)
 
 copyright remove?
 find follow-up work method?
+reference CLIP prior work on med contrast learning

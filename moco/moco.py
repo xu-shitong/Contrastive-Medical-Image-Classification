@@ -242,7 +242,10 @@ def adjust_learning_rate(optimizer, epoch, args):
 
 
 def accuracy(output, target, topk=(1,)):
-    """Computes the accuracy over the k top predictions for the specified values of k"""
+    """
+    NOT IN USE
+    Computes the accuracy over the k top predictions for the specified values of k
+    """
     with torch.no_grad():
         maxk = max(topk)
         batch_size = target.size(0)
@@ -259,7 +262,10 @@ def accuracy(output, target, topk=(1,)):
 
 
 def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
-    """Update loss, top1, top5 metrics for either train or validation
+    """
+    NOT IN USE
+    Update loss, top1, top5 metrics for either train or validation
+
     Inputs:
       - step_size: parameter n for loss/top1/top5 meters
     """
@@ -272,15 +278,15 @@ def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
 
 def multi_label_loss(prediction, target):
     """
-    Generic loss to handle multi-label classification when multiple positive 
-    image pairs exist
+    NOT IN USE
+    Loss to handle multi-label classification when multiple positive image pairs exist.
     
     Inputs: 
       - pretiction: shape: [bathc_size, 1 + k]
       - target: [batch_size] if one positive pair, otherwise [batch_size, 1 + K]
       
     Outputs:
-      - scalar loss value
+      - scalar loss value for back propagate
     """
     loss_func = nn.CrossEntropyLoss(reduction="none")
     if args.gpu is not None:
