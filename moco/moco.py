@@ -78,12 +78,14 @@ EPOCH_NUM = 200
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9
-MULTI_POSITIVE_PAIR = 0
+# LOSS_TYPE = "self"
+LOSS_TYPE = "cate-ce"
+# LOSS_TYPE = "binary-ce"
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_multi-pos{MULTI_POSITIVE_PAIR}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_loss-type{LOSS_TYPE}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100\
-_--multi-pos-pair_{MULTI_POSITIVE_PAIR}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
+_--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
 
 print(f"Running command {arg_command}")
 
@@ -144,9 +146,10 @@ parser.add_argument('--gpu', default=None, type=int,
 #                          'fastest way to use PyTorch for either single node or '
 #                          'multi node data parallel training')
 # new argument proposed for medical image classification
-parser.add_argument('-mp', '--multi-pos-pair', default=0, type=int, metavar='N',
-                    help='set to 0 if positive pairs are from the same image'
-                    'otherwise positive pairs are images from the same category')
+parser.add_argument('-lt', '--loss-type', default="binary-ce", type=str,
+                    help='self if positive pairs are from the same image'
+                    'cate-ce if categorical cross entropy loss is used for positive pairs from the same category'
+                    'binary-ce if binary cross entropy loss is used for positive pairs from the same category')
 
 # moco specific configs:
 parser.add_argument('--moco-dim', default=128, type=int,
@@ -167,7 +170,6 @@ parser.add_argument('--cos', action='store_true',
                     help='use cosine lr schedule')
 
 args = parser.parse_args(arg_command)
-args.multi_pos_pair = (not args.multi_pos_pair == 0)
 
 if args.seed is not None:
     random.seed(args.seed)
@@ -276,25 +278,30 @@ def update_accuracy_meters(losses, top1, top5, output, target, loss, step_size):
     top1.update(acc1[0], step_size)
     top5.update(acc5[0], step_size)
 
+
+ce_loss_ = nn.CrossEntropyLoss(reduction="mean") # take softmax, sum CrossEntropy per sample, take mean
+binary_loss_ = nn.BCEWithLogitsLoss(reduction="mean") # take mean of per sample per pair binary Cross Entropy
+if args.gpu is not None:
+  ce_loss_ = ce_loss_.cuda(args.gpu)
+  binary_loss_ = binary_loss_.cuda(args.gpu)
 def multi_label_loss(prediction, target):
     """
     NOT IN USE
     Loss to handle multi-label classification when multiple positive image pairs exist.
+    loss function used defined in args.loss_type
     
     Inputs: 
       - pretiction: shape: [bathc_size, 1 + k]
-      - target: [batch_size] if one positive pair, otherwise [batch_size, 1 + K]
+      - target: [batch_size] if self, otherwise [batch_size, 1 + K]
       
     Outputs:
       - scalar loss value for back propagate
     """
-    loss_func = nn.CrossEntropyLoss(reduction="none")
-    if args.gpu is not None:
-      loss_func = loss_func.cuda(args.gpu)
     
-    loss = loss_func(prediction, target)
-    if args.multi_pos_pair:
-      loss /= target.sum(dim=-1)
+    if args.loss_type == "binary-ce":
+      loss = binary_loss_(prediction, target).sum(dim=-1)
+    elif args.loss_type in ["cate-ce", "self"]:
+      loss = ce_loss_(prediction, target)
     
     return loss.mean()
 
@@ -358,9 +365,8 @@ model = builder.MoCo(
 if args.gpu is not None:
   torch.cuda.set_device(args.gpu)
   model = model.cuda(args.gpu)
-  criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-else:
-  criterion = nn.CrossEntropyLoss()
+
+criterion = multi_label_loss
 
 optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
@@ -397,7 +403,7 @@ for epoch in range(args.start_epoch, args.epochs):
         tepoch = train_loader
       for i, (images, labels) in enumerate(tepoch):
         # set label, if no label given, positive pair is image itself
-        if not args.multi_pos_pair:
+        if args.loss_type == 'self':
           labels = None
 
         # measure data loading time
@@ -432,7 +438,7 @@ for epoch in range(args.start_epoch, args.epochs):
             model.eval()
             # evaluate on validation set
             for (images, labels) in val_loader:
-              if not args.multi_pos_pair:
+              if args.loss_type == 'self':
                 labels = None
               if args.gpu is not None:
                 images = images.cuda(args.gpu, non_blocking=True)
