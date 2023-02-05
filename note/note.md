@@ -22,8 +22,34 @@ official SimCLR code: https://github.com/google-research/simclr
 | batch size | 256 for ImageNet-1M/ 1024 for Instagram-1B | 256 | 256 to 8192 before argumentation | achieve similar result with MoCo and Simclr with smaller queue size, learn faster (200 epoch to achieve MoCo 800 epoch result) training time longer than MoCo due to additional backward propoagation | 4096, no memory queue
 | computation resource | 8 GPU 50 hour/ 64 GPU for 6 day | 5G GPU memory | TPU 1.5hour 93G GPU memory using 4096 batch size | 64 V100 GPU, 16GB memory | used ViT, ViT-B on public GCP TPUv3 takes 6.3 hour for 300 epoch
 
-GPU requirement for 
 
-pathMnist
+? novelty
+- current is only evaluating more pretext function
+  - ? can get a dataset with larger image input
+- maybe can try attention based masking 
+- comparing embedding is quantitative, apart from training projection head
+  - maybe try implement embedding aligning, to ease the qualitative evaluation 
 
-one method one dataset practical result
+
+Self-supervised Learning from 100 Million Medical Images：multimodal on CT, MRI, ultrasound
+- pretraining show better performance than ？？
+- increase robustness to argumentation
+- using swav
+- swav for each modality, and sum the loss
+- mixed self-super/supervised learning: supervised positive pair: same class as positive pair. loss add with self-supervised loss
+- Related Work
+  - Self-supervised learning for medical image analysis using image context restoration：提出交换patch的位置，restore原图，没有contrastive learning 仅有self supervise
+  - Contrastive learning of global and local features for medical image segmentation with limited annotations：提出针对3d 医学图像的contrastive strategy，学习有局部特征的embedding 可用于segmentation，
+    - 不同3d图像的同一深度区域V为一正样本对，计算global contrastive loss
+    - local contrastive loss：decoder前l层中，长宽维度的一子feature map特征值为embedding，针对两样本的同一深度V同一长宽区域的特征为正样本，两样本V剩余区域的特征为负样本
+    - fine tune encoder，train from start decoder to segment
+  - Self-Supervised Learning Based on Spatial Awareness for Medical Image Analysis：
+    - spatial awareness学习：正样本由 交换3d图像同高宽一区域得到，同上contrastive learning of global and local
+    - 进行gradcam实验
+
+Robust and Efficient Medical Imaging with Self-Supervision
+- large scaled pretraining，can adapt to multiple other medical image modality without domain specific modification. so data efficient
+- strong out off distribution performance
+
+military
+- In htrpry yes can use, 

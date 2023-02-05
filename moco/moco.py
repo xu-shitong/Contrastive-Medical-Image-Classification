@@ -314,11 +314,11 @@ normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 if args.aug_plus:
     # MoCo v2's aug: similar to SimCLR https://arxiv.org/abs/2002.05709
     augmentation = [
-        # transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-        # transforms.RandomApply([
-        #     transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-        # ], p=0.8),
-        # transforms.RandomGrayscale(p=0.2),
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+        transforms.RandomApply([
+            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+        ], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
         transforms.RandomApply([loader.GaussianBlur([.1, 2.])], p=0.5),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -327,20 +327,18 @@ if args.aug_plus:
 else:
     # MoCo v1's aug: the same as InstDisc https://arxiv.org/abs/1805.01978
     augmentation = [
-        # transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-        # transforms.RandomGrayscale(p=0.2),
-        # transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize
     ]
 
 train_dataset = medmnist.PathMNIST("train", download=False, root=args.data, 
-                                  #  transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
-                                   transform=transforms.Compose(augmentation))
+                                   transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
 val_dataset = medmnist.PathMNIST("val", download=False, root=args.data, 
-                                  #  transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
-                                 transform=transforms.Compose(augmentation))
+                                   transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
 
 train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=args.batch_size, shuffle=True, 
@@ -410,10 +408,11 @@ for epoch in range(args.start_epoch, args.epochs):
         data_time.update(time.time() - end)
 
         if args.gpu is not None:
-            images = images.cuda(args.gpu, non_blocking=True)
+            images[0] = images[0].cuda(args.gpu, non_blocking=True)
+            images[1] = images[1].cuda(args.gpu, non_blocking=True)
 
         # compute output
-        output, target = model(img=images, labels=labels)
+        output, target = model(im_q=images[0], im_k=images[1], labels=labels)
         loss = criterion(output, target)
 
         # compute gradient and do SGD step
@@ -422,7 +421,7 @@ for epoch in range(args.start_epoch, args.epochs):
         optimizer.step()
 
         # update_accuracy_meters(losses, top1, top5, output, target, loss, images[0].size(0))
-        losses.update(loss.item(), images.size(0))
+        losses.update(loss.item(), images[0].size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -431,7 +430,7 @@ for epoch in range(args.start_epoch, args.epochs):
         if not WORKING_ENV == 'LABS':
           tepoch.set_description(f"batch {i}")
           tepoch.set_postfix(loss=loss.item())
-
+        
         # log performance
         if i % args.print_freq == 0 and not i == 0:
           with torch.no_grad():
@@ -441,8 +440,9 @@ for epoch in range(args.start_epoch, args.epochs):
               if args.loss_type == 'self':
                 labels = None
               if args.gpu is not None:
-                images = images.cuda(args.gpu, non_blocking=True)
-              output, target = model(img=images, labels=labels, train=False)
+                images[0] = images[0].cuda(args.gpu, non_blocking=True)
+                images[1] = images[1].cuda(args.gpu, non_blocking=True)
+              output, target = model(im_q=images[0], im_k=images[1], labels=labels, train=False)
               loss = criterion(output, target)
               # update_accuracy_meters(val_losses, val_top1, val_top5, output, target, loss, images[0].size(0))
               val_losses.update(loss.item(), images.size(0))

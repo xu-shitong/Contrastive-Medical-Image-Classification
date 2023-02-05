@@ -1,3 +1,5 @@
 /datasets/*
 */__pycache__
 *.pickle
+MNIST/
+icl_dl_cw2_utils/
