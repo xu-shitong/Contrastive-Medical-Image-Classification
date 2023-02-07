@@ -466,9 +466,7 @@ mem_report()
 
 """# Qualitative evaluation"""
 
-model = torch.load(ROOT + "/moco/epochs20_batch128_lr0.03_momentum0.9_loss-typeself_no-colouring.pickle").cuda(args.gpu)
 model.eval()
-
 classification_head = nn.Linear(128, 9).cuda(args.gpu)
 head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
 
