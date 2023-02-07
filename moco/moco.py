@@ -430,7 +430,7 @@ for epoch in range(args.start_epoch, args.epochs):
         if not WORKING_ENV == 'LABS':
           tepoch.set_description(f"batch {i}")
           tepoch.set_postfix(loss=loss.item())
-        
+
         # log performance
         if i % args.print_freq == 0 and not i == 0:
           with torch.no_grad():
@@ -461,10 +461,36 @@ for epoch in range(args.start_epoch, args.epochs):
     #         'optimizer' : optimizer.state_dict(),
     #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
+torch.save(model, f"{trial_name}.pickle")
+mem_report()
+
+"""# Qualitative evaluation"""
+
+model = torch.load(ROOT + "/moco/epochs20_batch128_lr0.03_momentum0.9_loss-typeself_no-colouring.pickle").cuda(args.gpu)
+model.eval()
+
+classification_head = nn.Linear(128, 9).cuda(args.gpu)
+head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
+
+for _ in range(30):
+  with tqdm.tqdm(val_loader, unit="batch") as tepoch: 
+    for i, (images, labels) in enumerate(tepoch):
+      images[0] = images[0].cuda(args.gpu, non_blocking=True)
+      labels = labels.cuda(args.gpu, non_blocking=True)
+      
+      with torch.no_grad():
+        q = model.encoder_q(images[0])  # queries: NxC
+        q = nn.functional.normalize(q, dim=1)
+      y_hat = classification_head(q)
+
+      l = ce_loss_(y_hat, labels.squeeze())
+
+      head_optimizer.zero_grad()
+      l.backward()
+      head_optimizer.step()
+
+  summary.write(f"classification loss: {l.item()}")
+
 if WORKING_ENV == 'LABS':
   summary.close()
-
-torch.save(model, f"{trial_name}.pickle")
-
-mem_report()
 
