@@ -22,10 +22,10 @@
   - TODO: preload queue with samples (did paper mentioned the operation?)
 
 todo:
-- try see how random crop works
-- try batch size
-- get usable model
-- 
+- try uncoloured mlp classify
+- try run whole program
+- train supervised baseline
+- gradcam
 
 
 thesis:

@@ -74,18 +74,20 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 200
+EPOCH_NUM = 20
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9
-# LOSS_TYPE = "self"
-LOSS_TYPE = "cate-ce"
+LOSS_TYPE = "self"
+# LOSS_TYPE = "cate-ce"
 # LOSS_TYPE = "binary-ce"
+TRAIN_SET_RATIO = 0.9
+MOCO_V2 = True
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_loss-type{LOSS_TYPE}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100\
-_--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{ROOT}./datasets".split("_")
+_--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
 
 print(f"Running command {arg_command}")
 
@@ -340,12 +342,21 @@ train_dataset = medmnist.PathMNIST("train", download=False, root=args.data,
 val_dataset = medmnist.PathMNIST("val", download=False, root=args.data, 
                                    transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
 
-train_loader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=args.batch_size, shuffle=True, 
+pretrain_len = int(len(train_dataset) * TRAIN_SET_RATIO)
+pretrain_set, pretrain_val_set = torch.utils.data.random_split(train_dataset, [pretrain_len, len(train_dataset) - pretrain_len])
+
+pretrain_loader = torch.utils.data.DataLoader(
+    pretrain_set, batch_size=args.batch_size, shuffle=True, 
     pin_memory=True, drop_last=True)
+pretrain_val_loader = torch.utils.data.DataLoader(
+    pretrain_val_set, batch_size=2 * args.batch_size, shuffle=False, 
+    pin_memory=True, drop_last=True)
+
 val_loader = torch.utils.data.DataLoader(
     val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
+
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}")
 
 """# Train"""
 
@@ -387,7 +398,7 @@ for epoch in range(args.start_epoch, args.epochs):
     # val_top5 = AverageMeter('ValAcc@5', ':6.2f')
     progress = ProgressMeter(
         summary,
-        len(train_loader),
+        len(pretrain_loader),
         # [batch_time, data_time, losses, top1, top5, val_losses, val_top1, val_top5],
         [batch_time, data_time, losses, val_losses],
         prefix="Epoch: [{}]".format(epoch))
@@ -396,9 +407,9 @@ for epoch in range(args.start_epoch, args.epochs):
     model.train()
 
     end = time.time()
-    with tqdm.tqdm(train_loader, unit="batch") as tepoch: 
+    with tqdm.tqdm(pretrain_loader, unit="batch") as tepoch: 
       if WORKING_ENV == "LABS":
-        tepoch = train_loader
+        tepoch = pretrain_loader
       for i, (images, labels) in enumerate(tepoch):
         # set label, if no label given, positive pair is image itself
         if args.loss_type == 'self':
@@ -436,7 +447,7 @@ for epoch in range(args.start_epoch, args.epochs):
           with torch.no_grad():
             model.eval()
             # evaluate on validation set
-            for (images, labels) in val_loader:
+            for (images, labels) in pretrain_val_loader:
               if args.loss_type == 'self':
                 labels = None
               if args.gpu is not None:

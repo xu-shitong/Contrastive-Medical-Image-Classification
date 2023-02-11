@@ -31,6 +31,8 @@ official SimCLR code: https://github.com/google-research/simclr
   - maybe try implement embedding aligning, to ease the qualitative evaluation 
 
 
+paper：
+
 Self-supervised Learning from 100 Million Medical Images：multimodal on CT, MRI, ultrasound
 - pretraining show better performance than ？？
 - increase robustness to argumentation
@@ -51,5 +53,3 @@ Robust and Efficient Medical Imaging with Self-Supervision
 - large scaled pretraining，can adapt to multiple other medical image modality without domain specific modification. so data efficient
 - strong out off distribution performance
 
-military
-- In htrpry yes can use, 
