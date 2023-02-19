@@ -1,0 +1,150 @@
+Epoch: [0][100/632]	Time  3.139 ( 3.214)	Data  1.604 ( 1.640)	TrainLoss 7.5202e+00 (7.3154e+00)	ValLoss 6.2746e+00 (6.8598e+00)
+Epoch: [0][200/632]	Time  3.260 ( 4.012)	Data  1.728 ( 2.461)	TrainLoss 7.6544e+00 (7.3684e+00)	ValLoss 6.2018e+00 (6.8830e+00)
+Epoch: [0][300/632]	Time  3.166 ( 4.270)	Data  1.635 ( 2.727)	TrainLoss 7.7360e+00 (7.4225e+00)	ValLoss 6.4928e+00 (6.9595e+00)
+Epoch: [0][400/632]	Time  3.134 ( 4.417)	Data  1.607 ( 2.878)	TrainLoss 7.8607e+00 (7.4714e+00)	ValLoss 6.5715e+00 (7.0202e+00)
+Epoch: [0][500/632]	Time  3.120 ( 4.491)	Data  1.591 ( 2.955)	TrainLoss 7.8088e+00 (7.4998e+00)	ValLoss 6.5635e+00 (7.0460e+00)
+Epoch: [0][600/632]	Time  3.166 ( 4.538)	Data  1.639 ( 3.003)	TrainLoss 7.5310e+00 (7.4829e+00)	ValLoss 5.7768e+00 (6.9813e+00)
+Epoch: [1][100/632]	Time  3.144 ( 3.181)	Data  1.610 ( 1.652)	TrainLoss 7.4194e+00 (7.4054e+00)	ValLoss 5.3538e+00 (6.3693e+00)
+Epoch: [1][200/632]	Time  3.186 ( 3.974)	Data  1.649 ( 2.447)	TrainLoss 7.2538e+00 (7.2754e+00)	ValLoss 5.2953e+00 (6.3312e+00)
+Epoch: [1][300/632]	Time  3.126 ( 4.263)	Data  1.590 ( 2.737)	TrainLoss 7.2805e+00 (7.2280e+00)	ValLoss 5.4167e+00 (6.3481e+00)
+Epoch: [1][400/632]	Time  3.138 ( 4.408)	Data  1.606 ( 2.882)	TrainLoss 7.4899e+00 (7.2137e+00)	ValLoss 5.6723e+00 (6.3922e+00)
+Epoch: [1][500/632]	Time  3.226 ( 4.488)	Data  1.700 ( 2.962)	TrainLoss 7.3930e+00 (7.2135e+00)	ValLoss 5.8247e+00 (6.4383e+00)
+Epoch: [1][600/632]	Time  3.105 ( 4.538)	Data  1.573 ( 3.011)	TrainLoss 7.4278e+00 (7.2190e+00)	ValLoss 5.9670e+00 (6.4882e+00)
+Epoch: [2][100/632]	Time  3.309 ( 3.172)	Data  1.755 ( 1.643)	TrainLoss 7.4974e+00 (7.4230e+00)	ValLoss 6.1059e+00 (6.7619e+00)
+Epoch: [2][200/632]	Time  3.132 ( 3.974)	Data  1.607 ( 2.447)	TrainLoss 7.4342e+00 (7.3092e+00)	ValLoss 5.9971e+00 (6.7290e+00)
+Epoch: [2][300/632]	Time  3.151 ( 4.249)	Data  1.625 ( 2.723)	TrainLoss 7.2327e+00 (7.2458e+00)	ValLoss 5.9928e+00 (6.7069e+00)
+Epoch: [2][400/632]	Time  3.147 ( 4.408)	Data  1.620 ( 2.883)	TrainLoss 7.2363e+00 (7.1975e+00)	ValLoss 5.8300e+00 (6.6836e+00)
+Epoch: [2][500/632]	Time  3.130 ( 4.482)	Data  1.603 ( 2.957)	TrainLoss 7.1522e+00 (7.1554e+00)	ValLoss 5.8762e+00 (6.6544e+00)
+Epoch: [2][600/632]	Time  3.140 ( 4.539)	Data  1.615 ( 3.013)	TrainLoss 7.0631e+00 (7.1205e+00)	ValLoss 5.9088e+00 (6.6315e+00)
+Epoch: [3][100/632]	Time  3.119 ( 3.168)	Data  1.585 ( 1.639)	TrainLoss 7.2346e+00 (7.1206e+00)	ValLoss 6.0387e+00 (6.5618e+00)
+Epoch: [3][200/632]	Time  3.161 ( 3.977)	Data  1.628 ( 2.450)	TrainLoss 7.0831e+00 (7.0283e+00)	ValLoss 6.0092e+00 (6.5827e+00)
+Epoch: [3][300/632]	Time  3.224 ( 4.255)	Data  1.696 ( 2.729)	TrainLoss 7.2197e+00 (6.9999e+00)	ValLoss 6.2757e+00 (6.6337e+00)
+Epoch: [3][400/632]	Time  3.113 ( 4.395)	Data  1.586 ( 2.870)	TrainLoss 7.1814e+00 (6.9852e+00)	ValLoss 6.2938e+00 (6.6635e+00)
+Epoch: [3][500/632]	Time  3.182 ( 4.473)	Data  1.646 ( 2.948)	TrainLoss 7.0602e+00 (6.9758e+00)	ValLoss 6.2879e+00 (6.6707e+00)
+Epoch: [3][600/632]	Time  3.187 ( 4.537)	Data  1.661 ( 3.012)	TrainLoss 7.2563e+00 (6.9654e+00)	ValLoss 6.3741e+00 (6.6906e+00)
+Epoch: [4][100/632]	Time  3.247 ( 3.214)	Data  1.725 ( 1.685)	TrainLoss 7.0454e+00 (7.0480e+00)	ValLoss 6.3612e+00 (6.7425e+00)
+Epoch: [4][200/632]	Time  3.164 ( 3.991)	Data  1.632 ( 2.465)	TrainLoss 7.2809e+00 (6.9538e+00)	ValLoss 6.1617e+00 (6.7004e+00)
+Epoch: [4][300/632]	Time  3.145 ( 4.275)	Data  1.618 ( 2.749)	TrainLoss 6.9516e+00 (6.9026e+00)	ValLoss 6.2357e+00 (6.6701e+00)
+Epoch: [4][400/632]	Time  3.247 ( 4.402)	Data  1.711 ( 2.875)	TrainLoss 7.0657e+00 (6.8704e+00)	ValLoss 6.2938e+00 (6.6689e+00)
+Epoch: [4][500/632]	Time  3.190 ( 4.482)	Data  1.661 ( 2.956)	TrainLoss 6.9404e+00 (6.8464e+00)	ValLoss 6.3846e+00 (6.6645e+00)
+Epoch: [4][600/632]	Time  3.234 ( 4.531)	Data  1.704 ( 3.005)	TrainLoss 7.0235e+00 (6.8248e+00)	ValLoss 6.2712e+00 (6.6545e+00)
+Epoch: [5][100/632]	Time  3.254 ( 3.175)	Data  1.724 ( 1.647)	TrainLoss 6.8617e+00 (6.8539e+00)	ValLoss 6.2128e+00 (6.5635e+00)
+Epoch: [5][200/632]	Time  3.199 ( 3.976)	Data  1.672 ( 2.450)	TrainLoss 6.8852e+00 (6.7645e+00)	ValLoss 6.2613e+00 (6.5686e+00)
+Epoch: [5][300/632]	Time  3.115 ( 4.282)	Data  1.592 ( 2.756)	TrainLoss 6.8312e+00 (6.7308e+00)	ValLoss 6.1943e+00 (6.5398e+00)
+Epoch: [5][400/632]	Time  3.156 ( 4.417)	Data  1.624 ( 2.891)	TrainLoss 6.8654e+00 (6.6996e+00)	ValLoss 6.2288e+00 (6.5423e+00)
+Epoch: [5][500/632]	Time  3.286 ( 4.491)	Data  1.750 ( 2.965)	TrainLoss 6.9729e+00 (6.6831e+00)	ValLoss 6.2738e+00 (6.5535e+00)
+Epoch: [5][600/632]	Time  3.216 ( 4.547)	Data  1.687 ( 3.022)	TrainLoss 6.6540e+00 (6.6734e+00)	ValLoss 6.2600e+00 (6.5489e+00)
+Epoch: [6][100/632]	Time  3.126 ( 3.170)	Data  1.594 ( 1.641)	TrainLoss 6.8931e+00 (6.7300e+00)	ValLoss 6.2377e+00 (6.5577e+00)
+Epoch: [6][200/632]	Time  3.263 ( 3.992)	Data  1.733 ( 2.465)	TrainLoss 6.7237e+00 (6.6484e+00)	ValLoss 6.3924e+00 (6.5814e+00)
+Epoch: [6][300/632]	Time  3.144 ( 4.260)	Data  1.607 ( 2.733)	TrainLoss 6.7811e+00 (6.6171e+00)	ValLoss 6.4197e+00 (6.6102e+00)
+Epoch: [6][400/632]	Time  3.140 ( 4.402)	Data  1.611 ( 2.875)	TrainLoss 6.6897e+00 (6.5980e+00)	ValLoss 6.2641e+00 (6.5861e+00)
+Epoch: [6][500/632]	Time  3.187 ( 4.481)	Data  1.656 ( 2.955)	TrainLoss 6.5006e+00 (6.5841e+00)	ValLoss 6.2826e+00 (6.5684e+00)
+Epoch: [6][600/632]	Time  3.164 ( 4.545)	Data  1.634 ( 3.019)	TrainLoss 6.5659e+00 (6.5677e+00)	ValLoss 6.1440e+00 (6.5474e+00)
+Epoch: [7][100/632]	Time  3.146 ( 3.167)	Data  1.611 ( 1.638)	TrainLoss 6.5949e+00 (6.5640e+00)	ValLoss 6.1120e+00 (6.4924e+00)
+Epoch: [7][200/632]	Time  3.195 ( 3.996)	Data  1.659 ( 2.468)	TrainLoss 6.5509e+00 (6.5055e+00)	ValLoss 6.2180e+00 (6.4212e+00)
+Epoch: [7][300/632]	Time  3.166 ( 4.261)	Data  1.639 ( 2.734)	TrainLoss 6.5971e+00 (6.4533e+00)	ValLoss 6.0427e+00 (6.4122e+00)
+Epoch: [7][400/632]	Time  3.218 ( 4.396)	Data  1.684 ( 2.869)	TrainLoss 6.2584e+00 (6.4218e+00)	ValLoss 5.9324e+00 (6.3759e+00)
+Epoch: [7][500/632]	Time  3.146 ( 4.485)	Data  1.614 ( 2.958)	TrainLoss 6.4399e+00 (6.3943e+00)	ValLoss 6.0595e+00 (6.3615e+00)
+Epoch: [7][600/632]	Time  3.222 ( 4.536)	Data  1.690 ( 3.009)	TrainLoss 6.6713e+00 (6.3756e+00)	ValLoss 6.3589e+00 (6.3854e+00)
+Epoch: [8][100/632]	Time  3.161 ( 3.163)	Data  1.639 ( 1.635)	TrainLoss 6.3198e+00 (6.3092e+00)	ValLoss 5.9134e+00 (6.2131e+00)
+Epoch: [8][200/632]	Time  3.186 ( 4.009)	Data  1.656 ( 2.480)	TrainLoss 6.4679e+00 (6.2652e+00)	ValLoss 5.9904e+00 (6.2519e+00)
+Epoch: [8][300/632]	Time  3.126 ( 4.278)	Data  1.601 ( 2.750)	TrainLoss 6.1534e+00 (6.2270e+00)	ValLoss 5.9645e+00 (6.2198e+00)
+Epoch: [8][400/632]	Time  3.126 ( 4.407)	Data  1.600 ( 2.879)	TrainLoss 6.1345e+00 (6.1991e+00)	ValLoss 5.8657e+00 (6.1969e+00)
+Epoch: [8][500/632]	Time  3.235 ( 4.483)	Data  1.708 ( 2.955)	TrainLoss 6.3998e+00 (6.1785e+00)	ValLoss 5.8240e+00 (6.1713e+00)
+Epoch: [8][600/632]	Time  3.152 ( 4.538)	Data  1.625 ( 3.011)	TrainLoss 6.2828e+00 (6.1571e+00)	ValLoss 5.9422e+00 (6.1768e+00)
+Epoch: [9][100/632]	Time  3.124 ( 3.176)	Data  1.599 ( 1.645)	TrainLoss 6.0935e+00 (6.0705e+00)	ValLoss 6.0577e+00 (6.0985e+00)
+Epoch: [9][200/632]	Time  3.155 ( 4.021)	Data  1.629 ( 2.491)	TrainLoss 6.3827e+00 (6.0192e+00)	ValLoss 5.8773e+00 (6.0646e+00)
+Epoch: [9][300/632]	Time  3.164 ( 4.281)	Data  1.627 ( 2.751)	TrainLoss 5.9804e+00 (5.9856e+00)	ValLoss 5.8925e+00 (6.0283e+00)
+Epoch: [9][400/632]	Time  3.216 ( 4.424)	Data  1.689 ( 2.896)	TrainLoss 6.0918e+00 (5.9599e+00)	ValLoss 5.7294e+00 (6.0005e+00)
+Epoch: [9][500/632]	Time  3.185 ( 4.498)	Data  1.648 ( 2.970)	TrainLoss 6.1288e+00 (5.9383e+00)	ValLoss 5.7527e+00 (5.9839e+00)
+Epoch: [9][600/632]	Time  3.226 ( 4.555)	Data  1.696 ( 3.027)	TrainLoss 6.0279e+00 (5.9186e+00)	ValLoss 5.5458e+00 (5.9676e+00)
+Epoch: [10][100/632]	Time  3.246 ( 3.220)	Data  1.717 ( 1.689)	TrainLoss 6.0711e+00 (5.8926e+00)	ValLoss 5.7742e+00 (5.8506e+00)
+Epoch: [10][200/632]	Time  3.166 ( 4.023)	Data  1.631 ( 2.493)	TrainLoss 5.9972e+00 (5.8532e+00)	ValLoss 5.5846e+00 (5.8549e+00)
+Epoch: [10][300/632]	Time  3.203 ( 4.288)	Data  1.669 ( 2.759)	TrainLoss 5.7526e+00 (5.8193e+00)	ValLoss 5.7305e+00 (5.8618e+00)
+Epoch: [10][400/632]	Time  3.210 ( 4.418)	Data  1.679 ( 2.890)	TrainLoss 5.8529e+00 (5.8000e+00)	ValLoss 5.7030e+00 (5.8446e+00)
+Epoch: [10][500/632]	Time  3.170 ( 4.511)	Data  1.641 ( 2.982)	TrainLoss 6.0099e+00 (5.7824e+00)	ValLoss 5.7250e+00 (5.8345e+00)
+Epoch: [10][600/632]	Time  3.159 ( 4.559)	Data  1.624 ( 3.031)	TrainLoss 5.8659e+00 (5.7665e+00)	ValLoss 5.6823e+00 (5.8209e+00)
+Epoch: [11][100/632]	Time  3.093 ( 3.172)	Data  1.562 ( 1.640)	TrainLoss 5.6714e+00 (5.7429e+00)	ValLoss 5.6510e+00 (5.7722e+00)
+Epoch: [11][200/632]	Time  3.126 ( 3.986)	Data  1.597 ( 2.456)	TrainLoss 5.6099e+00 (5.6993e+00)	ValLoss 5.6972e+00 (5.7837e+00)
+Epoch: [11][300/632]	Time  3.164 ( 4.268)	Data  1.628 ( 2.739)	TrainLoss 5.6218e+00 (5.6713e+00)	ValLoss 5.7643e+00 (5.8104e+00)
+Epoch: [11][400/632]	Time  3.172 ( 4.402)	Data  1.644 ( 2.874)	TrainLoss 5.4263e+00 (5.6485e+00)	ValLoss 5.3822e+00 (5.7732e+00)
+Epoch: [11][500/632]	Time  3.116 ( 4.484)	Data  1.586 ( 2.956)	TrainLoss 5.5447e+00 (5.6314e+00)	ValLoss 5.4944e+00 (5.7429e+00)
+Epoch: [11][600/632]	Time  3.311 ( 4.551)	Data  1.757 ( 3.023)	TrainLoss 5.7024e+00 (5.6167e+00)	ValLoss 5.4551e+00 (5.7052e+00)
+Epoch: [12][100/632]	Time  3.152 ( 3.215)	Data  1.630 ( 1.681)	TrainLoss 5.6132e+00 (5.5940e+00)	ValLoss 5.4802e+00 (5.6268e+00)
+Epoch: [12][200/632]	Time  3.229 ( 4.015)	Data  1.688 ( 2.483)	TrainLoss 5.7238e+00 (5.5567e+00)	ValLoss 5.4374e+00 (5.5813e+00)
+Epoch: [12][300/632]	Time  3.217 ( 4.283)	Data  1.692 ( 2.752)	TrainLoss 5.3981e+00 (5.5373e+00)	ValLoss 5.4282e+00 (5.5925e+00)
+Epoch: [12][400/632]	Time  3.251 ( 4.420)	Data  1.722 ( 2.891)	TrainLoss 5.3942e+00 (5.5096e+00)	ValLoss 5.3362e+00 (5.5847e+00)
+Epoch: [12][500/632]	Time  3.164 ( 4.497)	Data  1.624 ( 2.968)	TrainLoss 5.4498e+00 (5.4987e+00)	ValLoss 5.2246e+00 (5.5749e+00)
+Epoch: [12][600/632]	Time  3.177 ( 4.553)	Data  1.641 ( 3.024)	TrainLoss 5.3496e+00 (5.4836e+00)	ValLoss 5.3924e+00 (5.5648e+00)
+Epoch: [13][100/632]	Time  3.200 ( 3.191)	Data  1.672 ( 1.661)	TrainLoss 5.5073e+00 (5.4626e+00)	ValLoss 5.3253e+00 (5.5032e+00)
+Epoch: [13][200/632]	Time  3.166 ( 3.990)	Data  1.640 ( 2.462)	TrainLoss 5.6095e+00 (5.4285e+00)	ValLoss 5.3300e+00 (5.4796e+00)
+Epoch: [13][300/632]	Time  3.135 ( 4.285)	Data  1.603 ( 2.756)	TrainLoss 5.3849e+00 (5.3994e+00)	ValLoss 5.4032e+00 (5.4778e+00)
+Epoch: [13][400/632]	Time  3.104 ( 4.402)	Data  1.571 ( 2.873)	TrainLoss 5.2747e+00 (5.3806e+00)	ValLoss 5.2180e+00 (5.4770e+00)
+Epoch: [13][500/632]	Time  3.176 ( 4.488)	Data  1.649 ( 2.960)	TrainLoss 5.4170e+00 (5.3585e+00)	ValLoss 5.2356e+00 (5.4605e+00)
+Epoch: [13][600/632]	Time  3.192 ( 4.545)	Data  1.661 ( 3.017)	TrainLoss 5.3844e+00 (5.3454e+00)	ValLoss 5.1479e+00 (5.4495e+00)
+Epoch: [14][100/632]	Time  3.235 ( 3.179)	Data  1.712 ( 1.649)	TrainLoss 5.4661e+00 (5.3156e+00)	ValLoss 5.1060e+00 (5.4319e+00)
+Epoch: [14][200/632]	Time  3.146 ( 3.988)	Data  1.621 ( 2.459)	TrainLoss 5.1500e+00 (5.3018e+00)	ValLoss 5.2555e+00 (5.4134e+00)
+Epoch: [14][300/632]	Time  3.115 ( 4.263)	Data  1.591 ( 2.735)	TrainLoss 5.4669e+00 (5.2750e+00)	ValLoss 5.2653e+00 (5.3905e+00)
+Epoch: [14][400/632]	Time  3.148 ( 4.395)	Data  1.615 ( 2.867)	TrainLoss 5.0689e+00 (5.2537e+00)	ValLoss 5.2711e+00 (5.3895e+00)
+Epoch: [14][500/632]	Time  3.105 ( 4.476)	Data  1.569 ( 2.948)	TrainLoss 5.4691e+00 (5.2333e+00)	ValLoss 5.2598e+00 (5.3583e+00)
+Epoch: [14][600/632]	Time  3.181 ( 4.549)	Data  1.649 ( 3.020)	TrainLoss 5.3361e+00 (5.2212e+00)	ValLoss 5.1407e+00 (5.3350e+00)
+Epoch: [15][100/632]	Time  3.206 ( 3.181)	Data  1.676 ( 1.651)	TrainLoss 5.1871e+00 (5.1912e+00)	ValLoss 5.1477e+00 (5.2040e+00)
+Epoch: [15][200/632]	Time  3.167 ( 4.004)	Data  1.637 ( 2.475)	TrainLoss 5.4604e+00 (5.1702e+00)	ValLoss 5.1059e+00 (5.2500e+00)
+Epoch: [15][300/632]	Time  3.128 ( 4.272)	Data  1.600 ( 2.744)	TrainLoss 5.0634e+00 (5.1486e+00)	ValLoss 4.9554e+00 (5.2037e+00)
+Epoch: [15][400/632]	Time  3.178 ( 4.412)	Data  1.649 ( 2.884)	TrainLoss 5.1529e+00 (5.1256e+00)	ValLoss 5.1209e+00 (5.2116e+00)
+Epoch: [15][500/632]	Time  3.251 ( 4.492)	Data  1.726 ( 2.964)	TrainLoss 5.2307e+00 (5.1069e+00)	ValLoss 5.1213e+00 (5.2116e+00)
+Epoch: [15][600/632]	Time  3.165 ( 4.556)	Data  1.627 ( 3.028)	TrainLoss 5.1002e+00 (5.0919e+00)	ValLoss 5.1470e+00 (5.1914e+00)
+Epoch: [16][100/632]	Time  3.155 ( 3.217)	Data  1.628 ( 1.687)	TrainLoss 5.0417e+00 (5.0349e+00)	ValLoss 5.0496e+00 (5.1148e+00)
+Epoch: [16][200/632]	Time  3.195 ( 4.003)	Data  1.672 ( 2.474)	TrainLoss 4.9344e+00 (5.0189e+00)	ValLoss 5.0109e+00 (5.1419e+00)
+Epoch: [16][300/632]	Time  3.210 ( 4.271)	Data  1.689 ( 2.743)	TrainLoss 4.9863e+00 (5.0054e+00)	ValLoss 4.9824e+00 (5.1827e+00)
+Epoch: [16][400/632]	Time  3.168 ( 4.403)	Data  1.641 ( 2.875)	TrainLoss 5.0338e+00 (4.9985e+00)	ValLoss 5.2492e+00 (5.2173e+00)
+Epoch: [16][500/632]	Time  3.234 ( 4.498)	Data  1.703 ( 2.970)	TrainLoss 4.9371e+00 (4.9895e+00)	ValLoss 4.9032e+00 (5.1875e+00)
+Epoch: [16][600/632]	Time  3.246 ( 4.560)	Data  1.708 ( 3.032)	TrainLoss 5.0251e+00 (4.9810e+00)	ValLoss 4.8860e+00 (5.1691e+00)
+Epoch: [17][100/632]	Time  3.165 ( 3.176)	Data  1.625 ( 1.644)	TrainLoss 5.0647e+00 (4.9828e+00)	ValLoss 5.2566e+00 (5.2222e+00)
+Epoch: [17][200/632]	Time  3.419 ( 3.989)	Data  1.862 ( 2.460)	TrainLoss 4.9406e+00 (4.9579e+00)	ValLoss 5.2164e+00 (5.2669e+00)
+Epoch: [17][300/632]	Time  3.145 ( 4.263)	Data  1.619 ( 2.735)	TrainLoss 4.9098e+00 (4.9376e+00)	ValLoss 4.9405e+00 (5.2048e+00)
+Epoch: [17][400/632]	Time  3.178 ( 4.420)	Data  1.643 ( 2.892)	TrainLoss 4.8364e+00 (4.9163e+00)	ValLoss 4.7768e+00 (5.1372e+00)
+Epoch: [17][500/632]	Time  3.182 ( 4.511)	Data  1.646 ( 2.983)	TrainLoss 4.8697e+00 (4.9103e+00)	ValLoss 4.8232e+00 (5.1069e+00)
+Epoch: [17][600/632]	Time  3.156 ( 4.560)	Data  1.628 ( 3.031)	TrainLoss 4.8861e+00 (4.8881e+00)	ValLoss 4.6767e+00 (5.0736e+00)
+Epoch: [18][100/632]	Time  3.163 ( 3.176)	Data  1.633 ( 1.646)	TrainLoss 5.1422e+00 (4.8790e+00)	ValLoss 4.9267e+00 (4.9635e+00)
+Epoch: [18][200/632]	Time  3.186 ( 4.011)	Data  1.656 ( 2.483)	TrainLoss 4.6343e+00 (4.8475e+00)	ValLoss 4.8064e+00 (4.9516e+00)
+Epoch: [18][300/632]	Time  3.191 ( 4.283)	Data  1.658 ( 2.755)	TrainLoss 4.9650e+00 (4.8385e+00)	ValLoss 4.9466e+00 (4.9914e+00)
+Epoch: [18][400/632]	Time  3.147 ( 4.414)	Data  1.622 ( 2.886)	TrainLoss 4.9590e+00 (4.8220e+00)	ValLoss 4.6585e+00 (4.9627e+00)
+Epoch: [18][500/632]	Time  3.130 ( 4.505)	Data  1.599 ( 2.978)	TrainLoss 4.7123e+00 (4.8049e+00)	ValLoss 4.7330e+00 (4.9462e+00)
+Epoch: [18][600/632]	Time  3.140 ( 4.563)	Data  1.609 ( 3.035)	TrainLoss 4.6617e+00 (4.7973e+00)	ValLoss 4.7777e+00 (4.9314e+00)
+Epoch: [19][100/632]	Time  3.207 ( 3.215)	Data  1.680 ( 1.684)	TrainLoss 4.6673e+00 (4.7353e+00)	ValLoss 5.1894e+00 (5.2563e+00)
+Epoch: [19][200/632]	Time  3.125 ( 4.010)	Data  1.593 ( 2.481)	TrainLoss 4.7136e+00 (4.7250e+00)	ValLoss 4.6959e+00 (5.0345e+00)
+Epoch: [19][300/632]	Time  3.172 ( 4.289)	Data  1.642 ( 2.760)	TrainLoss 4.7782e+00 (4.7210e+00)	ValLoss 4.6875e+00 (4.9544e+00)
+Epoch: [19][400/632]	Time  3.172 ( 4.424)	Data  1.633 ( 2.895)	TrainLoss 4.8412e+00 (4.6988e+00)	ValLoss 5.0486e+00 (5.0186e+00)
+Epoch: [19][500/632]	Time  3.200 ( 4.513)	Data  1.665 ( 2.984)	TrainLoss 4.5219e+00 (4.6929e+00)	ValLoss 4.7676e+00 (4.9853e+00)
+Epoch: [19][600/632]	Time  3.212 ( 4.562)	Data  1.682 ( 3.033)	TrainLoss 5.2730e+00 (4.6870e+00)	ValLoss 4.7299e+00 (4.9603e+00)
+classification loss: 2.171973705291748
+classification loss: 2.1415319442749023
+classification loss: 2.116533041000366
+classification loss: 2.092869281768799
+classification loss: 2.0673887729644775
+classification loss: 2.0389552116394043
+classification loss: 2.0221667289733887
+classification loss: 1.9966319799423218
+classification loss: 1.9754598140716553
+classification loss: 1.9566045999526978
+classification loss: 1.9313950538635254
+classification loss: 1.91108238697052
+classification loss: 1.886912226676941
+classification loss: 1.8787208795547485
+classification loss: 1.845127820968628
+classification loss: 1.8428173065185547
+classification loss: 1.8173564672470093
+classification loss: 1.7865684032440186
+classification loss: 1.7775418758392334
+classification loss: 1.7625175714492798
+classification loss: 1.7570356130599976
+classification loss: 1.734276294708252
+classification loss: 1.720008373260498
+classification loss: 1.6990745067596436
+classification loss: 1.6905993223190308
+classification loss: 1.6614010334014893
+classification loss: 1.656649112701416
+classification loss: 1.6390855312347412
+classification loss: 1.6215476989746094
+classification loss: 1.6165552139282227
