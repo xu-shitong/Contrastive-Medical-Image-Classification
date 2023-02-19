@@ -9,7 +9,7 @@ Original file is located at
 # Download
 """
 
-WORKING_ENV = 'LABS' # Can be LABS, COLAB or PAPERSPACE
+WORKING_ENV = 'LABS' # Can be LABS, COLAB
 assert WORKING_ENV in ['LABS', 'COLAB', 'LOCAL']
 
 import sys
@@ -456,7 +456,7 @@ for epoch in range(args.start_epoch, args.epochs):
               output, target = model(im_q=images[0], im_k=images[1], labels=labels, train=False)
               loss = criterion(output, target)
               # update_accuracy_meters(val_losses, val_top1, val_top5, output, target, loss, images[0].size(0))
-              val_losses.update(loss.item(), images.size(0))
+              val_losses.update(loss.item(), images[0].size(0))
             
             model.train()
           
@@ -498,7 +498,9 @@ for _ in range(30):
       l.backward()
       head_optimizer.step()
 
-  summary.write(f"classification loss: {l.item()}")
+  summary.write(f"classification loss: {l.item()}\n")
+
+torch.save(classification_head, f"{trial_name}_head.pickle")
 
 if WORKING_ENV == 'LABS':
   summary.close()

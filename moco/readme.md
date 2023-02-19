@@ -23,7 +23,7 @@
 
 todo:
 - try uncoloured mlp classify
-- try run whole program
+- try run whole program, using moco and non-moco
 - train supervised baseline
 - gradcam
 

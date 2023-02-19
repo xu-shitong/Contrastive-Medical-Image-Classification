@@ -138,3 +138,33 @@ Epoch: [19][400/703]	Time  3.108 ( 4.494)	Data  1.578 ( 2.963)	TrainLoss 4.2371e
 Epoch: [19][500/703]	Time  3.113 ( 4.582)	Data  1.582 ( 3.051)	TrainLoss 4.6042e+00 (4.5024e+00)	ValLoss 4.5375e+00 (4.6336e+00)
 Epoch: [19][600/703]	Time  3.186 ( 4.646)	Data  1.654 ( 3.115)	TrainLoss 4.2932e+00 (4.5017e+00)	ValLoss 4.6002e+00 (4.6498e+00)
 Epoch: [19][700/703]	Time  3.128 ( 4.693)	Data  1.597 ( 3.162)	TrainLoss 4.4141e+00 (4.4977e+00)	ValLoss 4.5206e+00 (4.6469e+00)
+classification loss: 2.162052869796753
+classification loss: 2.136305570602417
+classification loss: 2.1084749698638916
+classification loss: 2.0842530727386475
+classification loss: 2.0617642402648926
+classification loss: 2.0368237495422363
+classification loss: 2.013967514038086
+classification loss: 1.992022156715393
+classification loss: 1.968910574913025
+classification loss: 1.946759819984436
+classification loss: 1.9223952293395996
+classification loss: 1.9071835279464722
+classification loss: 1.8885982036590576
+classification loss: 1.8594063520431519
+classification loss: 1.8482908010482788
+classification loss: 1.8310155868530273
+classification loss: 1.8138401508331299
+classification loss: 1.7965518236160278
+classification loss: 1.7724632024765015
+classification loss: 1.7504011392593384
+classification loss: 1.7341234683990479
+classification loss: 1.7222665548324585
+classification loss: 1.720206379890442
+classification loss: 1.6959294080734253
+classification loss: 1.6837137937545776
+classification loss: 1.6622599363327026
+classification loss: 1.6458925008773804
+classification loss: 1.6324082612991333
+classification loss: 1.6238411664962769
+classification loss: 1.6035982370376587
