@@ -79,14 +79,15 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 2
-BATCH_SIZE = 16
+EPOCH_NUM = 20
+BATCH_SIZE = 256
 LEARNING_RATE = 4.8
 TRAIN_SET_RATIO = 0.9
 CROP_NUM = [2]
 CROP_SIZE = [32]
 MIN_SCALE_CROP = [0.14]
 MAX_SCALE_CROP = [1]
+PRINT_FREQ = 100
 
 trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
 arg_command = \
@@ -318,12 +319,12 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
             losses.update(loss.item(), inputs[0].size(0))
             batch_time.update(time.time() - end)
             end = time.time()
-            if args.rank ==0 and it % 50 == 0:
+            if args.rank ==0 and it % PRINT_FREQ == 0 and it != 0:
                 summary.write("Epoch: [{0}][{1}]\t"
                     "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
                     "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
                     "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
-                    "Lr: {lr:.4f}".format(
+                    "Lr: {lr:.4f}\n".format(
                         epoch,
                         it,
                         batch_time=batch_time,
