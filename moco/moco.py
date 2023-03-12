@@ -337,13 +337,19 @@ else:
         normalize
     ]
 
-train_dataset = medmnist.PathMNIST("train", download=False, root=args.data, 
-                                   transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
+# # legacy split dataset operation, should load splitted data instead
+# train_dataset = medmnist.PathMNIST("train", download=False, root=args.data)
+
+# pretrain_len = int(len(train_dataset) * TRAIN_SET_RATIO)
+# pretrain_set, pretrain_val_set = torch.utils.data.random_split(train_dataset, [pretrain_len, len(train_dataset) - pretrain_len])
+# torch.save(pretrain_set, "pretrain_set.data")
+# torch.save(pretrain_val_set, "pretrain_val_set.data")
+
+# # proper dataset loading, by loading pre-splitted data
+pretrain_set = loader.MOCODataset(args.data + "/pretrain_set.data", augmentation)
+pretrain_val_set = loader.MOCODataset(args.data + "/pretrain_val_set.data", augmentation)
 val_dataset = medmnist.PathMNIST("val", download=False, root=args.data, 
                                    transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
-
-pretrain_len = int(len(train_dataset) * TRAIN_SET_RATIO)
-pretrain_set, pretrain_val_set = torch.utils.data.random_split(train_dataset, [pretrain_len, len(train_dataset) - pretrain_len])
 
 pretrain_loader = torch.utils.data.DataLoader(
     pretrain_set, batch_size=args.batch_size, shuffle=True, 
@@ -475,7 +481,7 @@ for epoch in range(args.start_epoch, args.epochs):
 torch.save(model, f"{trial_name}.pickle")
 mem_report()
 
-"""# Qualitative evaluation"""
+"""# Quantitative evaluation"""
 
 model.eval()
 classification_head = nn.Linear(128, 9).cuda(args.gpu)

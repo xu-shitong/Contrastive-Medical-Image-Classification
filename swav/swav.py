@@ -79,12 +79,12 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
+EPOCH_NUM = 2
 BATCH_SIZE = 16
 LEARNING_RATE = 4.8
 TRAIN_SET_RATIO = 0.9
 CROP_NUM = [2]
-CROP_SIZE = [224]
+CROP_SIZE = [32]
 MIN_SCALE_CROP = [0.14]
 MAX_SCALE_CROP = [1]
 
