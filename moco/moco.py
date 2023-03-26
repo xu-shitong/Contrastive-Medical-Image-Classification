@@ -24,10 +24,13 @@ if WORKING_ENV == 'COLAB':
   # ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
   # sys.path.append(ROOT + "./moco/")
   # !nvidia-smi
+  slurm_id = 0
 elif WORKING_ENV == 'LABS':
   ROOT = "/vol/bitbucket/sx119/Contrastive-Medical-Image-Classification/"
+  slurm_id = os.environ["SLURM_JOB_ID"]
 else:
   ROOT = "/Users/xushitong/Contrastive-Medical-Image-Classification/"
+  slurm_id = 0
 
 """# Import"""
 
@@ -367,7 +370,7 @@ print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretr
 """# Train"""
 
 if WORKING_ENV == 'LABS':
-  summary = open(trial_name + ".txt", "a")
+  summary = open(f"{slurm_id}_" + trial_name + ".txt", "a")
 else:
   summary = sys.stdout
 
@@ -478,17 +481,19 @@ for epoch in range(args.start_epoch, args.epochs):
     #         'optimizer' : optimizer.state_dict(),
     #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
-torch.save(model, f"{trial_name}.pickle")
+torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
 
 """# Quantitative evaluation"""
+
+# model = torch.load(f"{trial_name}.pickle")
 
 model.eval()
 classification_head = nn.Linear(128, 9).cuda(args.gpu)
 head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
 
 for _ in range(30):
-  with tqdm.tqdm(val_loader, unit="batch") as tepoch: 
+  with tqdm.tqdm(pretrain_loader, unit="batch") as tepoch: 
     for i, (images, labels) in enumerate(tepoch):
       images[0] = images[0].cuda(args.gpu, non_blocking=True)
       labels = labels.cuda(args.gpu, non_blocking=True)
@@ -504,9 +509,37 @@ for _ in range(30):
       l.backward()
       head_optimizer.step()
 
-  summary.write(f"classification loss: {l.item()}\n")
+      if i % args.print_freq == 0 and not i == 0:
+        summary.write(f"classification loss: {l.item()}\n")
 
-torch.save(classification_head, f"{trial_name}_head.pickle")
+summary.write("\n")
+torch.save(classification_head, f"{slurm_id}_{trial_name}_head_pretrain_loader.pickle")
+
+model.eval()
+classification_head = nn.Linear(128, 9).cuda(args.gpu)
+head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
+
+for _ in range(30 * 8):
+  with tqdm.tqdm(val_loader, unit="batch") as tepoch: 
+    for i, (images, labels) in enumerate(tepoch):
+      images[0] = images[0].cuda(args.gpu, non_blocking=True)
+      labels = labels.cuda(args.gpu, non_blocking=True)
+      
+      with torch.no_grad():
+        q = model.encoder_q(images[0])  # queries: NxC
+        q = nn.functional.normalize(q, dim=1)
+      y_hat = classification_head(q)
+
+      l = ce_loss_(y_hat, labels.squeeze())
+
+      head_optimizer.zero_grad()
+      l.backward()
+      head_optimizer.step()
+      
+      if i % args.print_freq == 0 and not i == 0:
+        summary.write(f"classification loss: {l.item()}\n")
+
+torch.save(classification_head, f"{slurm_id}_{trial_name}_head_val_loader.pickle")
 
 if WORKING_ENV == 'LABS':
   summary.close()
