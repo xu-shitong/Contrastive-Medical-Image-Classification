@@ -84,7 +84,7 @@ BATCH_SIZE = 256
 LEARNING_RATE = 4.8
 TRAIN_SET_RATIO = 0.9
 CROP_NUM = [2]
-CROP_SIZE = [32]
+CROP_SIZE = [224]
 MIN_SCALE_CROP = [0.14]
 MAX_SCALE_CROP = [1]
 PRINT_FREQ = 100
@@ -188,28 +188,47 @@ fix_random_seeds(args.seed)
 
 """# Dataset"""
 
-train_dataset = MultiCropDataset(
-        medmnist.PathMNIST("train", download=False, root=args.data_path),
+pretrain_set = MultiCropDataset(
+        torch.load(args.data_path + "/pretrain_set.data"),
         args.data_path,
         args.size_crops,
         args.nmb_crops,
         args.min_scale_crops,
         args.max_scale_crops,
+        return_label=True
+    )
+pretrain_val_set = MultiCropDataset(
+        torch.load(args.data_path + "/pretrain_val_set.data"),
+        args.data_path,
+        args.size_crops,
+        args.nmb_crops,
+        args.min_scale_crops,
+        args.max_scale_crops,
+        return_label=True
     )
 
-pretrain_loader = torch.utils.data.DataLoader(train_dataset, batch_size=16)
+val_dataset = MultiCropDataset(
+        medmnist.PathMNIST("val", download=False, root=args.data_path),
+        args.data_path,
+        args.size_crops,
+        args.nmb_crops,
+        args.min_scale_crops,
+        args.max_scale_crops,
+        return_label=True
+    )
 
-# train_dataset = medmnist.PathMNIST("train", download=False, root=args.data, 
-#                                    transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
-# val_dataset = medmnist.PathMNIST("val", download=False, root=args.data, 
-#                                    transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
+pretrain_loader = torch.utils.data.DataLoader(
+    pretrain_set, batch_size=args.batch_size, shuffle=True, 
+    pin_memory=True, drop_last=True)
+pretrain_val_loader = torch.utils.data.DataLoader(
+    pretrain_val_set, batch_size=2 * args.batch_size, shuffle=False, 
+    pin_memory=True, drop_last=True)
 
-# pretrain_len = int(len(train_dataset) * TRAIN_SET_RATIO)
-# pretrain_set, pretrain_val_set = torch.utils.data.random_split(train_dataset, [pretrain_len, len(train_dataset) - pretrain_len])
+val_loader = torch.utils.data.DataLoader(
+    val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
+    pin_memory=True, drop_last=True)
 
-# pretrain_loader = torch.utils.data.DataLoader(
-#     pretrain_set, batch_size=args.batch_size, shuffle=True, 
-#     pin_memory=True, drop_last=True)
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}")
 
 """# Training Helper Functions"""
 
@@ -244,19 +263,22 @@ def distributed_sinkhorn(out):
     return Q.t()
 
 
-def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
+def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue, train=True):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
 
-    model.train()
+    if train:
+        model.train()
+    else:
+        model.eval()
     use_the_queue = False
 
     end = time.time()
-    with tqdm.tqdm(pretrain_loader, unit="batch") as tepoch: 
+    with tqdm.tqdm(train_loader, unit="batch") as tepoch: 
         if WORKING_ENV == "LABS":
-          tepoch = pretrain_loader
-        for it, inputs in enumerate(tepoch):
+            tepoch = train_loader
+        for it, (inputs, label) in enumerate(tepoch):
             # measure data loading time
             data_time.update(time.time() - end)
 
@@ -306,14 +328,15 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
             loss /= len(args.crops_for_assign)
 
             # ============ backward and optim step ... ============
-            optimizer.zero_grad()
-            loss.backward()
-            # cancel gradients for the prototypes
-            if iteration < args.freeze_prototypes_niters:
-                for name, p in model.named_parameters():
-                    if "prototypes" in name:
-                        p.grad = None
-            optimizer.step()
+            if train:
+                optimizer.zero_grad()
+                loss.backward()
+                # cancel gradients for the prototypes
+                if iteration < args.freeze_prototypes_niters:
+                    for name, p in model.named_parameters():
+                        if "prototypes" in name:
+                            p.grad = None
+                optimizer.step()
 
             # ============ misc ... ============
             losses.update(loss.item(), inputs[0].size(0))
@@ -333,6 +356,9 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
                         lr=optimizer.param_groups[0]["lr"],
                     )
                 )
+                if not WORKING_ENV == 'LABS':
+                    tepoch.set_description(f"batch {i}")
+                    tepoch.set_postfix(loss=loss.item())
     return (epoch, losses.avg), queue
 
 """# Train"""
@@ -431,7 +457,9 @@ for epoch in range(start_epoch, args.epochs):
         ).cuda()
 
     # train the network
-    scores, queue = train(pretrain_loader, model, optimizer, epoch, lr_schedule, queue)
+    scores, queue = train_func(pretrain_loader, model, optimizer, epoch, lr_schedule, queue)
+    with torch.no_grad():
+        train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
     # training_stats.update(scores)
 
     # # save checkpoints

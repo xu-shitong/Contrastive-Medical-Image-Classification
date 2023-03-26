@@ -25,13 +25,13 @@ class MultiCropDataset():
         min_scale_crops,
         max_scale_crops,
         size_dataset=-1,
-        return_index=False,
+        return_label=False,
     ):
         assert len(size_crops) == len(nmb_crops)
         assert len(min_scale_crops) == len(nmb_crops)
         assert len(max_scale_crops) == len(nmb_crops)
         self.samples = samples
-        self.return_index = return_index
+        self.return_label = return_label
 
         self.color_transform = [get_color_distortion(), PILRandomGaussianBlur()]
         mean = [0.485, 0.456, 0.406]
@@ -55,11 +55,11 @@ class MultiCropDataset():
         return len(self.samples)
 
     def __getitem__(self, index):
-        image, _ = self.samples[index]
+        image, label = self.samples[index]
         # image = self.loader(path)
         multi_crops = list(map(lambda trans: trans(image), self.trans))
-        if self.return_index:
-            return index, multi_crops
+        if self.return_label:
+            return multi_crops, label
         return multi_crops
 
 
