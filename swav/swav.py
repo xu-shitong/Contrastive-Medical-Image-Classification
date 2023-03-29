@@ -13,6 +13,7 @@ WORKING_ENV = 'LABS' # Can be LABS, COLAB
 assert WORKING_ENV in ['LABS', 'COLAB', 'LOCAL']
 
 import sys
+import os
 if WORKING_ENV == 'COLAB':
   from google.colab import drive
   drive.mount('/content/drive/')
@@ -24,10 +25,13 @@ if WORKING_ENV == 'COLAB':
   # ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
   # sys.path.append(ROOT + "./swav/")
   # !nvidia-smi
+  slurm_id = 0
 elif WORKING_ENV == 'LABS':
   ROOT = "/vol/bitbucket/sx119/Contrastive-Medical-Image-Classification/"
+  slurm_id = os.environ["SLURM_JOB_ID"]
 else:
   ROOT = "/Users/xushitong/Contrastive-Medical-Image-Classification/"
+  slurm_id = 0
 
 """# Import"""
 
@@ -80,7 +84,7 @@ mem_report()
 """# Hyperparameters"""
 
 EPOCH_NUM = 20
-BATCH_SIZE = 256
+BATCH_SIZE = 64
 LEARNING_RATE = 4.8
 TRAIN_SET_RATIO = 0.9
 CROP_NUM = [2]
@@ -342,12 +346,12 @@ def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue, train=
             losses.update(loss.item(), inputs[0].size(0))
             batch_time.update(time.time() - end)
             end = time.time()
-            if args.rank ==0 and it % PRINT_FREQ == 0 and it != 0:
+            if train and args.rank ==0 and it % PRINT_FREQ == 0 and it != 0:
                 summary.write("Epoch: [{0}][{1}]\t"
                     "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
                     "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
                     "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
-                    "Lr: {lr:.4f}\n".format(
+                    "Lr: {lr:.4f}".format(
                         epoch,
                         it,
                         batch_time=batch_time,
@@ -457,9 +461,10 @@ for epoch in range(start_epoch, args.epochs):
         ).cuda()
 
     # train the network
-    scores, queue = train_func(pretrain_loader, model, optimizer, epoch, lr_schedule, queue)
+    scores, _ = train_func(pretrain_loader, model, optimizer, epoch, lr_schedule, queue)
     with torch.no_grad():
-        train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
+        val_scores, _ = train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
+    summary.write(f"val avg loss: {val_scores[1]}\n")
     # training_stats.update(scores)
 
     # # save checkpoints
@@ -483,3 +488,33 @@ for epoch in range(start_epoch, args.epochs):
 
 torch.save(model, f"{trial_name}.pickle")
 mem_report()
+
+"""# Quantitative Evaluation"""
+
+model.eval()
+eval_set_info = [("val_loader", val_loader, 20 * 8), ("pretrain_loader", pretrain_loader, 20)]
+for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
+    classification_head = nn.Linear(128, 9).cuda()
+    head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
+    ce_loss = nn.CrossEntropyLoss(reduction="mean")
+
+    for _ in range(eval_epoch_num):
+      with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
+        for i, (images, labels) in enumerate(tepoch):
+          images[0] = images[0].cuda(non_blocking=True)
+          labels = labels.cuda(non_blocking=True)
+          
+          with torch.no_grad():
+            q = model(images[0])[0]
+          y_hat = classification_head(q)
+
+          l = ce_loss(y_hat, labels.squeeze())
+
+          head_optimizer.zero_grad()
+          l.backward()
+          head_optimizer.step()
+
+          if i % 10 == 0 and not i == 0:
+            summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
+
+    torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
