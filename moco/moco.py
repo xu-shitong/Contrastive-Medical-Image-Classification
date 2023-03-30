@@ -77,7 +77,8 @@ mem_report()
 EPOCH_NUM = 20
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
-MOMENTUM = 0.9
+MOMENTUM = 0.9 # momentum of SGD
+MOCO_MOMENTUM = 0.999 # momentum of moco
 LOSS_TYPE = "self"
 # LOSS_TYPE = "cate-ce"
 # LOSS_TYPE = "binary-ce"
@@ -85,9 +86,9 @@ TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
 PROJ_HEAD_EPOCH_NUM = 20
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}"
 arg_command = \
-f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--print-freq_100\
+f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
 
 print(f"Running command {arg_command}")
