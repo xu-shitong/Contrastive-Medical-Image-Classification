@@ -237,7 +237,7 @@ print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretr
 """# Training Helper Functions"""
 
 if WORKING_ENV == 'LABS':
-  summary = open(trial_name + ".txt", "a")
+  summary = open(f"{slurm_id}_{trial_name}.txt", "a")
 else:
   summary = sys.stdout
 
@@ -486,7 +486,7 @@ for epoch in range(start_epoch, args.epochs):
     # if queue is not None:
     #     torch.save({"queue": queue}, queue_path)
 
-torch.save(model, f"{trial_name}.pickle")
+torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
 
 """# Quantitative Evaluation"""

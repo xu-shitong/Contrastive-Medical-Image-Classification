@@ -83,6 +83,7 @@ LOSS_TYPE = "self"
 # LOSS_TYPE = "binary-ce"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
+PROJ_HEAD_EPOCH_NUM = 20
 
 trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}"
 arg_command = \
@@ -478,7 +479,7 @@ for epoch in range(args.start_epoch, args.epochs):
     #         'optimizer' : optimizer.state_dict(),
     #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
-torch.save(model, f"{trial_name}.pickle")
+torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
 
 """# Quantitative evaluation"""
@@ -486,7 +487,7 @@ mem_report()
 # model = torch.load(f"{trial_name}.pickle")
 
 model.eval()
-eval_set_info = [("val_loader", val_loader, 15 * 8), ("pretrain_loader", pretrain_loader, 15)]
+eval_set_info = [("val_loader", val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, PROJ_HEAD_EPOCH_NUM)]
 for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
     classification_head = nn.Linear(128, 9).cuda(args.gpu)
     head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
@@ -512,6 +513,7 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
           if i % 10 == 0 and not i == 0:
             summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
 
+    summary.write("\n")
     torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
 
 if WORKING_ENV == 'LABS':
