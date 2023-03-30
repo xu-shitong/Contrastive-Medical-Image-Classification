@@ -197,7 +197,5 @@ for epoch in range(EPOCH_NUM):
           tepoch.set_description(f"batch {i}")
           tepoch.set_postfix(loss=l.item())
 
-label
-
 torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
