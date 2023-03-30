@@ -9,7 +9,7 @@ Original file is located at
 # Download
 """
 
-WORKING_ENV = 'COLAB' # Can be LABS, COLAB or PAPERSPACE
+WORKING_ENV = 'LABS' # Can be LABS, COLAB or PAPERSPACE
 assert WORKING_ENV in ['LABS', 'COLAB', 'LOCAL']
 
 import sys
@@ -17,14 +17,14 @@ import os
 if WORKING_ENV == 'COLAB':
   from google.colab import drive
   drive.mount('/content/drive/')
-  !pip install medmnist
-  !pip install torch
-  !pip install gputil
-  !pip install psutil
-  !pip install humanize
-  ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
-  sys.path.append(ROOT + "./supervised/")
-  !nvidia-smi
+  # !pip install medmnist
+  # !pip install torch
+  # !pip install gputil
+  # !pip install psutil
+  # !pip install humanize
+  # ROOT = "/content/drive/MyDrive/ColabNotebooks/med-contrastive-project/"
+  # sys.path.append(ROOT + "./supervised/")
+  # !nvidia-smi
   slurm_id = 0
 elif WORKING_ENV == 'LABS':
   ROOT = "/vol/bitbucket/sx119/Contrastive-Medical-Image-Classification/"
@@ -82,7 +82,7 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
+EPOCH_NUM = 2
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
