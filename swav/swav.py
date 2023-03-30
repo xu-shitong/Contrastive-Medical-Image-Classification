@@ -366,7 +366,7 @@ def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue, train=
 
                 with torch.no_grad():
                     val_scores, _ = train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
-                summary.write(f"val avg loss: {val_scores[1]}\n")
+                summary.write(f" val avg loss: {val_scores[1]}\n")
 
     return (epoch, losses.avg), queue
 
