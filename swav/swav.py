@@ -83,9 +83,9 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
+EPOCH_NUM = 2
 BATCH_SIZE = 64
-LEARNING_RATE = 4.8
+LEARNING_RATE = 0.03
 TRAIN_SET_RATIO = 0.9
 CROP_NUM = [2]
 CROP_SIZE = [224]
@@ -363,6 +363,11 @@ def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue, train=
                 if not WORKING_ENV == 'LABS':
                     tepoch.set_description(f"batch {i}")
                     tepoch.set_postfix(loss=loss.item())
+
+                with torch.no_grad():
+                    val_scores, _ = train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
+                summary.write(f"val avg loss: {val_scores[1]}\n")
+
     return (epoch, losses.avg), queue
 
 """# Train"""
@@ -461,10 +466,7 @@ for epoch in range(start_epoch, args.epochs):
         ).cuda()
 
     # train the network
-    scores, _ = train_func(pretrain_loader, model, optimizer, epoch, lr_schedule, queue)
-    with torch.no_grad():
-        val_scores, _ = train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
-    summary.write(f"val avg loss: {val_scores[1]}\n")
+    scores, queue = train_func(pretrain_loader, model, optimizer, epoch, lr_schedule, queue)
     # training_stats.update(scores)
 
     # # save checkpoints
@@ -498,7 +500,7 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
     head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
     ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
-    for _ in range(eval_epoch_num):
+    for epoch in range(eval_epoch_num):
       with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
         for i, (images, labels) in enumerate(tepoch):
           images[0] = images[0].cuda(non_blocking=True)
@@ -517,4 +519,5 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
           if i % 10 == 0 and not i == 0:
             summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
 
+    summary.write("\n")
     torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")

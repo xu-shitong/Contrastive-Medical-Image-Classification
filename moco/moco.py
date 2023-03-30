@@ -493,7 +493,7 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
     head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
     ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
-    for _ in range(eval_epoch_num):
+    for epoch in range(eval_epoch_num):
       with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
         for i, (images, labels) in enumerate(tepoch):
           images[0] = images[0].cuda(args.gpu, non_blocking=True)
