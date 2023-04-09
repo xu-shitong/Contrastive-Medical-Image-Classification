@@ -83,19 +83,23 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 2
+EPOCH_NUM = 1
 BATCH_SIZE = 64
-LEARNING_RATE = 0.03
+BASE_LEARNING_RATE = 4.8
+FINAL_LR = 0.0048
+WARMUP_EPOCHS = 10
+STARD_WARMUP = 0.3
 TRAIN_SET_RATIO = 0.9
-CROP_NUM = [2]
-CROP_SIZE = [224]
-MIN_SCALE_CROP = [0.14]
-MAX_SCALE_CROP = [1]
+CROP_NUM = [2, 6]
+CROP_SIZE = [224, 96]
+MIN_SCALE_CROP = [0.14, 0.05]
+MAX_SCALE_CROP = [1, 0.14]
 PRINT_FREQ = 100
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{STARD_WARMUP}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
 arg_command = \
-f"--epochs {EPOCH_NUM} --batch_size {BATCH_SIZE} --base_lr {LEARNING_RATE}\
+f"--epochs {EPOCH_NUM} --batch_size {BATCH_SIZE} --base_lr {BASE_LEARNING_RATE}\
+ --final_lr {FINAL_LR} --warmup_epochs {WARMUP_EPOCHS} --start_warmup {STARD_WARMUP}\
  --nmb_crops {' '.join(map(str, CROP_NUM))} --size_crops {' '.join(map(str, CROP_SIZE))} --min_scale_crops {' '.join(map(str, MIN_SCALE_CROP))} --max_scale_crops {' '.join(map(str, MAX_SCALE_CROP))}\
  --data_path {ROOT}./datasets".split(" ")
 
@@ -220,6 +224,15 @@ val_dataset = MultiCropDataset(
         args.max_scale_crops,
         return_label=True
     )
+test_dataset = MultiCropDataset(
+        medmnist.PathMNIST("test", download=False, root=args.data_path),
+        args.data_path,
+        args.size_crops,
+        args.nmb_crops,
+        args.min_scale_crops,
+        args.max_scale_crops,
+        return_label=True
+    )
 
 pretrain_loader = torch.utils.data.DataLoader(
     pretrain_set, batch_size=args.batch_size, shuffle=True, 
@@ -231,146 +244,13 @@ pretrain_val_loader = torch.utils.data.DataLoader(
 val_loader = torch.utils.data.DataLoader(
     val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
+test_loader = torch.utils.data.DataLoader(
+    test_dataset, batch_size=2 * args.batch_size, shuffle=False, 
+    pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}\ntest size, {len(test_dataset)}")
 
-"""# Training Helper Functions"""
-
-if WORKING_ENV == 'LABS':
-  summary = open(f"{slurm_id}_{trial_name}.txt", "a")
-else:
-  summary = sys.stdout
-
-@torch.no_grad()
-def distributed_sinkhorn(out):
-    Q = torch.exp(out / args.epsilon).t() # Q is K-by-B for consistency with notations from our paper
-    B = Q.shape[1] * args.world_size # number of samples to assign
-    K = Q.shape[0] # how many prototypes
-
-    # make the matrix sums to 1
-    sum_Q = torch.sum(Q)
-    # dist.all_reduce(sum_Q)
-    Q /= sum_Q
-
-    for it in range(args.sinkhorn_iterations):
-        # normalize each row: total weight per prototype must be 1/K
-        sum_of_rows = torch.sum(Q, dim=1, keepdim=True)
-        # dist.all_reduce(sum_of_rows)
-        Q /= sum_of_rows
-        Q /= K
-
-        # normalize each column: total weight per sample must be 1/B
-        Q /= torch.sum(Q, dim=0, keepdim=True)
-        Q /= B
-
-    Q *= B # the colomns must sum to 1 so that Q is an assignment
-    return Q.t()
-
-
-def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue, train=True):
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-
-    if train:
-        model.train()
-    else:
-        model.eval()
-    use_the_queue = False
-
-    end = time.time()
-    with tqdm.tqdm(train_loader, unit="batch") as tepoch: 
-        if WORKING_ENV == "LABS":
-            tepoch = train_loader
-        for it, (inputs, label) in enumerate(tepoch):
-            # measure data loading time
-            data_time.update(time.time() - end)
-
-            # update learning rate
-            iteration = epoch * len(train_loader) + it
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = lr_schedule[iteration]
-
-            # normalize the prototypes
-            with torch.no_grad():
-                w = model.prototypes.weight.data.clone()
-                w = nn.functional.normalize(w, dim=1, p=2)
-                model.prototypes.weight.copy_(w)
-
-            # ============ multi-res forward passes ... ============
-            embedding, output = model(inputs)
-            embedding = embedding.detach()
-            bs = inputs[0].size(0)
-
-            # ============ swav loss ... ============
-            loss = 0
-            for i, crop_id in enumerate(args.crops_for_assign):
-                with torch.no_grad():
-                    out = output[bs * crop_id: bs * (crop_id + 1)].detach()
-
-                    # time to use the queue
-                    if queue is not None:
-                        if use_the_queue or not torch.all(queue[i, -1, :] == 0):
-                            use_the_queue = True
-                            out = torch.cat((torch.mm(
-                                queue[i],
-                                model.module.prototypes.weight.t()
-                            ), out))
-                        # fill the queue
-                        queue[i, bs:] = queue[i, :-bs].clone()
-                        queue[i, :bs] = embedding[crop_id * bs: (crop_id + 1) * bs]
-
-                    # get assignments
-                    q = distributed_sinkhorn(out)[-bs:]
-
-                # cluster assignment prediction
-                subloss = 0
-                for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
-                    x = output[bs * v: bs * (v + 1)] / args.temperature
-                    subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
-                loss += subloss / (np.sum(args.nmb_crops) - 1)
-            loss /= len(args.crops_for_assign)
-
-            # ============ backward and optim step ... ============
-            if train:
-                optimizer.zero_grad()
-                loss.backward()
-                # cancel gradients for the prototypes
-                if iteration < args.freeze_prototypes_niters:
-                    for name, p in model.named_parameters():
-                        if "prototypes" in name:
-                            p.grad = None
-                optimizer.step()
-
-            # ============ misc ... ============
-            losses.update(loss.item(), inputs[0].size(0))
-            batch_time.update(time.time() - end)
-            end = time.time()
-            if train and args.rank ==0 and it % PRINT_FREQ == 0 and it != 0:
-                summary.write("Epoch: [{0}][{1}]\t"
-                    "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
-                    "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
-                    "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
-                    "Lr: {lr:.4f}".format(
-                        epoch,
-                        it,
-                        batch_time=batch_time,
-                        data_time=data_time,
-                        loss=losses,
-                        lr=optimizer.param_groups[0]["lr"],
-                    )
-                )
-                if not WORKING_ENV == 'LABS':
-                    tepoch.set_description(f"batch {i}")
-                    tepoch.set_postfix(loss=loss.item())
-
-                with torch.no_grad():
-                    val_scores, _ = train_func(pretrain_val_loader, model, optimizer, epoch, lr_schedule, queue, train=False)
-                summary.write(f" val avg loss: {val_scores[1]}\n")
-
-    return (epoch, losses.avg), queue
-
-"""# Train"""
+"""# Training Setup and Helper Functions"""
 
 # logger, training_stats = initialize_exp(args, "epoch", "loss")
 
@@ -408,7 +288,7 @@ model = model.cuda()
 # logger.info("Building model done.")
 
 # build optimizer
-optimizer = torch.optim.SGD(
+optimizer = torch.optim.SGD( # adam # 0.001
     model.parameters(),
     lr=args.base_lr,
     momentum=0.9,
@@ -448,6 +328,146 @@ if os.path.isfile(queue_path):
 args.queue_length -= args.queue_length % (args.batch_size * args.world_size)
 
 cudnn.benchmark = True
+
+if WORKING_ENV == 'LABS':
+  summary = open(f"{slurm_id}_{trial_name}.txt", "a")
+else:
+  summary = sys.stdout
+
+@torch.no_grad()
+def distributed_sinkhorn(out):
+    Q = torch.exp(out / args.epsilon).t() # Q is K-by-B for consistency with notations from our paper
+    B = Q.shape[1] * args.world_size # number of samples to assign
+    K = Q.shape[0] # how many prototypes
+
+    # make the matrix sums to 1
+    sum_Q = torch.sum(Q)
+    # dist.all_reduce(sum_Q)
+    Q /= sum_Q
+
+    for it in range(args.sinkhorn_iterations):
+        # normalize each row: total weight per prototype must be 1/K
+        sum_of_rows = torch.sum(Q, dim=1, keepdim=True)
+        # dist.all_reduce(sum_of_rows)
+        Q /= sum_of_rows
+        Q /= K
+
+        # normalize each column: total weight per sample must be 1/B
+        Q /= torch.sum(Q, dim=0, keepdim=True)
+        Q /= B
+
+    Q *= B # the colomns must sum to 1 so that Q is an assignment
+    return Q.t()
+
+def train_step(model, inputs, train, queue=None, iteration=None):
+    # normalize the prototypes
+    with torch.no_grad():
+        w = model.prototypes.weight.data.clone()
+        w = nn.functional.normalize(w, dim=1, p=2)
+        model.prototypes.weight.copy_(w)
+
+    # ============ multi-res forward passes ... ============
+    embedding, output = model(inputs)
+    embedding = embedding.detach()
+    bs = inputs[0].size(0)
+
+    # ============ swav loss ... ============
+    loss = 0
+    for i, crop_id in enumerate(args.crops_for_assign):
+        with torch.no_grad():
+            out = output[bs * crop_id: bs * (crop_id + 1)].detach()
+
+            # time to use the queue
+            if queue is not None:
+                if use_the_queue or not torch.all(queue[i, -1, :] == 0):
+                    use_the_queue = True
+                    out = torch.cat((torch.mm(
+                        queue[i],
+                        model.module.prototypes.weight.t()
+                    ), out))
+                # fill the queue
+                queue[i, bs:] = queue[i, :-bs].clone()
+                queue[i, :bs] = embedding[crop_id * bs: (crop_id + 1) * bs]
+
+            # get assignments
+            q = distributed_sinkhorn(out)[-bs:]
+
+        # cluster assignment prediction
+        subloss = 0
+        for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
+            x = output[bs * v: bs * (v + 1)] / args.temperature
+            subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
+        loss += subloss / (np.sum(args.nmb_crops) - 1)
+    loss /= len(args.crops_for_assign)
+
+    # ============ backward and optim step ... ============
+    if train:
+        optimizer.zero_grad()
+        loss.backward()
+        # cancel gradients for the prototypes
+        if iteration < args.freeze_prototypes_niters:
+            for name, p in model.named_parameters():
+                if "prototypes" in name:
+                    p.grad = None
+        optimizer.step()
+    return loss
+
+def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue):
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+
+    use_the_queue = False
+
+    end = time.time()
+    with tqdm.tqdm(train_loader, unit="batch") as tepoch: 
+        if WORKING_ENV == "LABS":
+            tepoch = train_loader
+        for it, (inputs, label) in enumerate(tepoch):
+            # measure data loading time
+            data_time.update(time.time() - end)
+
+            # update learning rate
+            iteration = epoch * len(train_loader) + it
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr_schedule[iteration]
+
+            loss = train_step(model, inputs, True, queue, iteration)
+
+            # ============ misc ... ============
+            losses.update(loss.item(), inputs[0].size(0))
+            batch_time.update(time.time() - end)
+            end = time.time()
+            if args.rank ==0 and it % PRINT_FREQ == 0 and it != 0:
+                summary.write("Epoch: [{0}][{1}]\t"
+                    "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
+                    "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
+                    "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+                    "Lr: {lr:.4f}".format(
+                        epoch,
+                        it,
+                        batch_time=batch_time,
+                        data_time=data_time,
+                        loss=losses,
+                        lr=optimizer.param_groups[0]["lr"],
+                    )
+                )
+                if not WORKING_ENV == 'LABS':
+                    tepoch.set_description(f"batch {it}")
+                    tepoch.set_postfix(loss=loss.item())
+
+                acc_val_loss = 0
+                with torch.no_grad():
+                    with tqdm.tqdm(pretrain_val_loader, unit="batch") as tepoch: 
+                        if WORKING_ENV == "LABS":
+                            tepoch = pretrain_val_loader
+                        for it, (inputs, label) in enumerate(tepoch):
+                            acc_val_loss += train_step(model, inputs, False)
+                summary.write(f" val avg loss: {acc_val_loss / len(pretrain_val_loader)}\n")
+
+    return (epoch, losses.avg), queue
+
+"""# Train"""
 
 for epoch in range(start_epoch, args.epochs):
 
@@ -492,6 +512,8 @@ torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
 
 """# Quantitative Evaluation"""
+
+# model = torch.load(f"{trial_name}.pickle")
 
 model.eval()
 eval_set_info = [("val_loader", val_loader, 20 * 8), ("pretrain_loader", pretrain_loader, 20)]

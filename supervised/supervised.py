@@ -190,7 +190,7 @@ for epoch in range(EPOCH_NUM):
       acc_l += l.item()
 
       if i % PRINT_FREQ == 0 and i != 0:
-        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}[{acc_l / (i + 1)}]")
+        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)})")
         validate(pretrain_val_loader)
 
         if not WORKING_ENV == 'LABS':
