@@ -84,7 +84,7 @@ mem_report()
 """# Hyperparameters"""
 
 EPOCH_NUM = 1
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 BASE_LEARNING_RATE = 0.001
 FINAL_LR = 0.001
 WARMUP_EPOCHS = 4
@@ -94,7 +94,7 @@ CROP_NUM = [2, 6]
 CROP_SIZE = [224, 96]
 MIN_SCALE_CROP = [0.14, 0.05]
 MAX_SCALE_CROP = [1, 0.14]
-PRINT_FREQ = 100
+PRINT_FREQ = 500
 
 trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{WARMUP_LR}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
 arg_command = \
@@ -291,8 +291,8 @@ model = model.cuda()
 optimizer = torch.optim.Adam(
     model.parameters(),
     lr=args.base_lr,
-    momentum=0.9,
-    weight_decay=args.wd,
+    # momentum=0.9,
+    # weight_decay=args.wd,
 )
 # optimizer = LARC(optimizer=optimizer, trust_coefficient=0.001, clip=False)
 warmup_lr_schedule = np.linspace(args.start_warmup, args.base_lr, len(pretrain_loader) * args.warmup_epochs)

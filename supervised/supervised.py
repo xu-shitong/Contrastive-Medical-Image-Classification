@@ -82,7 +82,7 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
+EPOCH_NUM = 15
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
@@ -220,7 +220,7 @@ with torch.no_grad():
     acc_l += l
 
     for i in range(label.shape[0]):
-      confusion_matrix[label[i].item(), label_hat[i].item()] += 1
+      confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
 
 acc_f1 = 0
 for i in range(confusion_matrix.shape[0]):
@@ -229,5 +229,5 @@ for i in range(confusion_matrix.shape[0]):
   acc_f1 += 2 / (1 / precision + 1 / recall)
 
 torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_confusion_matrix.pickle")
-summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / len(test_loader)}\n")
+summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
 
