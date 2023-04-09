@@ -82,14 +82,15 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 2
+EPOCH_NUM = 20
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
 PRINT_FREQ = 10
+ON_PRETRAINED = True # if trained on pre-training set or on validation set
 
-trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}"
+trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}"
 
 print("trial name: " + trial_name)
 
@@ -126,7 +127,17 @@ augmentation = [
 pretrain_set = SupervisedDataset(ROOT + "/datasets/pretrain_set.data", augmentation=augmentation)
 pretrain_val_set = SupervisedDataset(ROOT + "/datasets/pretrain_val_set.data", augmentation=augmentation)
 val_dataset = medmnist.PathMNIST("val", download=False, root=ROOT + "/datasets/", 
-                                   transform=transforms.Compose(augmentation))
+                                  transform=transforms.Compose([
+                                    transforms.Resize(224),
+                                    transforms.ToTensor(),
+                                    normalize
+                                  ]))
+test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
+                                  transform=transforms.Compose([
+                                    transforms.Resize(224),
+                                    transforms.ToTensor(),
+                                    normalize
+                                  ]))
 
 pretrain_loader = torch.utils.data.DataLoader(
     pretrain_set, batch_size=BATCH_SIZE, shuffle=True, 
@@ -138,8 +149,11 @@ pretrain_val_loader = torch.utils.data.DataLoader(
 val_loader = torch.utils.data.DataLoader(
     val_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
     pin_memory=True, drop_last=True)
+test_loader = torch.utils.data.DataLoader(
+    test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
+    pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}\ntest size, {len(test_dataset)}")
 
 """# Train"""
 
@@ -158,7 +172,7 @@ criterion = nn.CrossEntropyLoss(reduction="mean")
 
 optimizer = torch.optim.SGD(model.parameters(), LEARNING_RATE, momentum=0.9, weight_decay=1e-4)
 
-def train_func(img, label, train=True):
+def train_func(img, label, train=True, return_y=False):
   # train/evaluate on given data for one mini batch 
   img = img.to(device)
   label = label.to(device)
@@ -171,27 +185,23 @@ def train_func(img, label, train=True):
     l.backward()
     optimizer.step()
 
+  if return_y:
+    return l, label_hat
   return l
-
-def validate(loader):
-  acc_l = 0
-  with torch.no_grad():
-    for (img, label) in loader:
-      l = train_func(img, label, False)
-      acc_l += l
-
-  summary.write(f"validate loss: {acc_l / len(loader)}\n")
 
 for epoch in range(EPOCH_NUM):
   acc_l = 0
-  with tqdm.tqdm(pretrain_loader, unit="batch") as tepoch: 
+  if ON_PRETRAINED:
+    loader = pretrain_loader
+  else:
+    loader = val_loader
+  with tqdm.tqdm(loader, unit="batch") as tepoch: 
     for i, (img, label) in enumerate(tepoch):
       l = train_func(img, label)
       acc_l += l.item()
 
       if i % PRINT_FREQ == 0 and i != 0:
         summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)})")
-        validate(pretrain_val_loader)
 
         if not WORKING_ENV == 'LABS':
           tepoch.set_description(f"batch {i}")
@@ -199,3 +209,25 @@ for epoch in range(EPOCH_NUM):
 
 torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
+
+"""# Quantitative Evaluation"""
+
+acc_l = 0
+confusion_matrix = torch.zeros((9, 9))
+with torch.no_grad():
+  for (img, label) in test_loader:
+    l, label_hat = train_func(img, label, train=False, return_y=True)
+    acc_l += l
+
+    for i in range(label.shape[0]):
+      confusion_matrix[label[i].item(), label_hat[i].item()] += 1
+
+acc_f1 = 0
+for i in range(confusion_matrix.shape[0]):
+  recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
+  precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
+  acc_f1 += 2 / (1 / precision + 1 / recall)
+
+torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_confusion_matrix.pickle")
+summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / len(test_loader)}\n")
+

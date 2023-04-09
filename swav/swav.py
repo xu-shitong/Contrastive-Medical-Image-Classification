@@ -85,10 +85,10 @@ mem_report()
 
 EPOCH_NUM = 1
 BATCH_SIZE = 64
-BASE_LEARNING_RATE = 4.8
-FINAL_LR = 0.0048
-WARMUP_EPOCHS = 10
-STARD_WARMUP = 0.3
+BASE_LEARNING_RATE = 0.001
+FINAL_LR = 0.001
+WARMUP_EPOCHS = 4
+WARMUP_LR = 0.0005
 TRAIN_SET_RATIO = 0.9
 CROP_NUM = [2, 6]
 CROP_SIZE = [224, 96]
@@ -96,10 +96,10 @@ MIN_SCALE_CROP = [0.14, 0.05]
 MAX_SCALE_CROP = [1, 0.14]
 PRINT_FREQ = 100
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{STARD_WARMUP}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{WARMUP_LR}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
 arg_command = \
 f"--epochs {EPOCH_NUM} --batch_size {BATCH_SIZE} --base_lr {BASE_LEARNING_RATE}\
- --final_lr {FINAL_LR} --warmup_epochs {WARMUP_EPOCHS} --start_warmup {STARD_WARMUP}\
+ --final_lr {FINAL_LR} --warmup_epochs {WARMUP_EPOCHS} --start_warmup {WARMUP_LR}\
  --nmb_crops {' '.join(map(str, CROP_NUM))} --size_crops {' '.join(map(str, CROP_SIZE))} --min_scale_crops {' '.join(map(str, MIN_SCALE_CROP))} --max_scale_crops {' '.join(map(str, MAX_SCALE_CROP))}\
  --data_path {ROOT}./datasets".split(" ")
 
@@ -288,7 +288,7 @@ model = model.cuda()
 # logger.info("Building model done.")
 
 # build optimizer
-optimizer = torch.optim.SGD( # adam # 0.001
+optimizer = torch.optim.Adam(
     model.parameters(),
     lr=args.base_lr,
     momentum=0.9,
@@ -516,7 +516,7 @@ mem_report()
 # model = torch.load(f"{trial_name}.pickle")
 
 model.eval()
-eval_set_info = [("val_loader", val_loader, 20 * 8), ("pretrain_loader", pretrain_loader, 20)]
+eval_set_info = [("val_loader", val_loader, 1 * 8), ("pretrain_loader", pretrain_loader, 1)]
 for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
     classification_head = nn.Linear(128, 9).cuda()
     head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
