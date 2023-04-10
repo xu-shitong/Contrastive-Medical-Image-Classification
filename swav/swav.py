@@ -95,8 +95,9 @@ CROP_SIZE = [224, 96]
 MIN_SCALE_CROP = [0.14, 0.05]
 MAX_SCALE_CROP = [1, 0.14]
 PRINT_FREQ = 500
+PROJ_HEAD_EPOCH_NUM = 1
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{WARMUP_LR}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{WARMUP_LR}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}_head-epoch{PROJ_HEAD_EPOCH_NUM}"
 arg_command = \
 f"--epochs {EPOCH_NUM} --batch_size {BATCH_SIZE} --base_lr {BASE_LEARNING_RATE}\
  --final_lr {FINAL_LR} --warmup_epochs {WARMUP_EPOCHS} --start_warmup {WARMUP_LR}\
@@ -224,15 +225,14 @@ val_dataset = MultiCropDataset(
         args.max_scale_crops,
         return_label=True
     )
-test_dataset = MultiCropDataset(
-        medmnist.PathMNIST("test", download=False, root=args.data_path),
-        args.data_path,
-        args.size_crops,
-        args.nmb_crops,
-        args.min_scale_crops,
-        args.max_scale_crops,
-        return_label=True
-    )
+test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
+                                  transform=transforms.Compose([
+                                    transforms.Resize(224),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize(
+                                        mean=[0.485, 0.456, 0.406],
+                                        std=[0.228, 0.224, 0.225])
+                                  ]))
 
 pretrain_loader = torch.utils.data.DataLoader(
     pretrain_set, batch_size=args.batch_size, shuffle=True, 
@@ -242,13 +242,13 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pin_memory=True, drop_last=True)
 
 val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
+    val_dataset, batch_size=2 * args.batch_size, shuffle=True, 
     pin_memory=True, drop_last=True)
 test_loader = torch.utils.data.DataLoader(
     test_dataset, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}\ntest size, {len(test_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size: {len(val_dataset)}\ntest size: {len(test_dataset)}")
 
 """# Training Setup and Helper Functions"""
 
@@ -360,6 +360,10 @@ def distributed_sinkhorn(out):
     return Q.t()
 
 def train_step(model, inputs, train, queue=None, iteration=None):
+    if train:
+        model.train()
+    else:
+        model.eval()
     # normalize the prototypes
     with torch.no_grad():
         w = model.prototypes.weight.data.clone()
@@ -516,30 +520,54 @@ mem_report()
 # model = torch.load(f"{trial_name}.pickle")
 
 model.eval()
-eval_set_info = [("val_loader", val_loader, 1 * 8), ("pretrain_loader", pretrain_loader, 1)]
+eval_set_info = [("val_loader", val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, PROJ_HEAD_EPOCH_NUM)]
 for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
-    classification_head = nn.Linear(128, 9).cuda()
-    head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
-    ce_loss = nn.CrossEntropyLoss(reduction="mean")
+  classification_head = nn.Linear(128, 9).cuda()
+  head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
+  ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
-    for epoch in range(eval_epoch_num):
-      with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
-        for i, (images, labels) in enumerate(tepoch):
-          images[0] = images[0].cuda(non_blocking=True)
-          labels = labels.cuda(non_blocking=True)
-          
-          with torch.no_grad():
-            q = model(images[0])[0]
-          y_hat = classification_head(q)
+  classification_head.train()
+  for epoch in range(eval_epoch_num):
+    with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
+      for i, (images, labels) in enumerate(tepoch):
+        images[0] = images[0].cuda(non_blocking=True)
+        labels = labels.cuda(non_blocking=True)
+        
+        with torch.no_grad():
+          q = model(images[0])[0]
+        y_hat = classification_head(q)
 
-          l = ce_loss(y_hat, labels.squeeze())
+        l = ce_loss(y_hat, labels.squeeze())
 
-          head_optimizer.zero_grad()
-          l.backward()
-          head_optimizer.step()
+        head_optimizer.zero_grad()
+        l.backward()
+        head_optimizer.step()
 
-          if i % 10 == 0 and not i == 0:
-            summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
+        if i % 10 == 0 and not i == 0:
+          summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
 
-    summary.write("\n")
-    torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
+  classification_head.train()
+  acc_l = 0
+  confusion_matrix = torch.zeros((9, 9))
+  with torch.no_grad():
+    for (img, label) in test_loader:
+      q = model(img)[0]
+      label_hat = classification_head(q)
+      l = ce_loss(label_hat, label.squeeze())
+              
+      acc_l += l
+
+      for i in range(label.shape[0]):
+        confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
+
+  acc_f1 = 0
+  for i in range(confusion_matrix.shape[0]):
+    recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
+    precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
+    acc_f1 += 2 / (1 / precision + 1 / recall)
+
+  summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
+  summary.write("\n")
+
+  torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_{eval_loader_name}_confusion_matrix.pickle")
+  torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")

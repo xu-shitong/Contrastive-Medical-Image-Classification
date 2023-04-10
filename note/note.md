@@ -53,18 +53,16 @@ Robust and Efficient Medical Imaging with Self-Supervision
 - large scaled pretraining，can adapt to multiple other medical image modality without domain specific modification. so data efficient
 - strong out off distribution performance
 
-|                          | MOCO & MOCO v2 & SwAV     | supervised large | supervised small | 
-|  ----                    | ----                      | ----             | ----             | 
-| pre-train set            | backbone model training   | training         | not used         | 
-| pre-train validation set | backbone model validation | not used         | not used         | 
-| validation set           | mlp head  training        | not used         | traning          | 
-| test set                 | testing                   | testing          | testing          |
+|                          | augmentetaion | MOCO & MOCO v2 & SwAV            | supervised large | supervised small | 
+|  ----                    | ----          | ----                             | ----             | ----             | 
+| pre-train set            | augmented     | backbone (+head?) model training | training         | not used         | 
+| pre-train validation set | augmented     | backbone model validation        | not used         | not used         | 
+| validation set           | augmented     | mlp head training                | not used         | traning          | 
+| test set                 | not augmented | testing                          | testing          | testing          |
 
 
 |                                  | MOCO           | MOCO v2        | SwAV           | supervised large | supervised small | 
 |  ----                            | ----           | ----           | ----           | ----             | ----             | 
-| backbone training set            | pre-train set  | pre-train set  | pre-train set  | ----             | ----             |
-| mlp training set                 | validation set | validation set | validation set | pre-train set    | validation set   |
 | validation set mlp training loss | | | | | |
 | validation set mlp training F1   | | | | | |
 | test set mlp loss                | | | | | |
