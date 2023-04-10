@@ -127,11 +127,7 @@ augmentation = [
 pretrain_set = SupervisedDataset(ROOT + "/datasets/pretrain_set.data", augmentation=augmentation)
 pretrain_val_set = SupervisedDataset(ROOT + "/datasets/pretrain_val_set.data", augmentation=augmentation)
 val_dataset = medmnist.PathMNIST("val", download=False, root=ROOT + "/datasets/", 
-                                  transform=transforms.Compose([
-                                    transforms.Resize(224),
-                                    transforms.ToTensor(),
-                                    normalize
-                                  ]))
+                                  transform=transforms.Compose(augmentation))
 test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
                                   transform=transforms.Compose([
                                     transforms.Resize(224),
@@ -147,13 +143,13 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pin_memory=True, drop_last=True)
 
 val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
+    val_dataset, batch_size=2 * BATCH_SIZE, shuffle=True, 
     pin_memory=True, drop_last=True)
 test_loader = torch.utils.data.DataLoader(
     test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}\ntest size, {len(test_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size: {len(val_dataset)}\ntest size: {len(test_dataset)}")
 
 """# Train"""
 
@@ -176,6 +172,11 @@ def train_func(img, label, train=True, return_y=False):
   # train/evaluate on given data for one mini batch 
   img = img.to(device)
   label = label.to(device)
+
+  if train:
+    model.train()
+  else:
+    model.eval()
 
   label_hat = model(img)
   l = criterion(label_hat, label.squeeze())
