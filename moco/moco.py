@@ -352,6 +352,12 @@ pretrain_set = loader.MOCODataset(args.data + "/pretrain_set.data", augmentation
 pretrain_val_set = loader.MOCODataset(args.data + "/pretrain_val_set.data", augmentation)
 val_dataset = medmnist.PathMNIST("val", download=False, root=args.data, 
                                    transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
+test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
+                                  transform=transforms.Compose([
+                                    transforms.Resize(224),
+                                    transforms.ToTensor(),
+                                    normalize
+                                  ]))
 
 pretrain_loader = torch.utils.data.DataLoader(
     pretrain_set, batch_size=args.batch_size, shuffle=True, 
@@ -361,10 +367,13 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pin_memory=True, drop_last=True)
 
 val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=2 * args.batch_size, shuffle=False, 
+    val_dataset, batch_size=2 * args.batch_size, shuffle=True, 
+    pin_memory=True, drop_last=True)
+test_loader = torch.utils.data.DataLoader(
+    test_dataset, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size, {len(val_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size: {len(val_dataset)}\ntest size: {len(test_dataset)}")
 
 """# Train"""
 
@@ -494,6 +503,7 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
     head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
     ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
+    classification_head.train()
     for epoch in range(eval_epoch_num):
       with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
         for i, (images, labels) in enumerate(tepoch):
@@ -514,7 +524,31 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
           if i % 10 == 0 and not i == 0:
             summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
 
+    classification_head.train()
+    acc_l = 0
+    confusion_matrix = torch.zeros((9, 9))
+    with torch.no_grad():
+      for (img, label) in test_loader:
+        q = model.encoder_q(img)
+        q = nn.functional.normalize(q, dim=1)
+        label_hat = classification_head(q)
+        l = ce_loss(label_hat, label.squeeze())
+                
+        acc_l += l
+
+        for i in range(label.shape[0]):
+          confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
+
+    acc_f1 = 0
+    for i in range(confusion_matrix.shape[0]):
+      recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
+      precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
+      acc_f1 += 2 / (1 / precision + 1 / recall)
+
+    summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
     summary.write("\n")
+
+    torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_{eval_loader_name}_confusion_matrix.pickle")
     torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
 
 if WORKING_ENV == 'LABS':
