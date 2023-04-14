@@ -82,13 +82,16 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 15
+EPOCH_NUM = 120
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
-PRINT_FREQ = 10
-ON_PRETRAINED = True # if trained on pre-training set or on validation set
+ON_PRETRAINED = False # if trained on pre-training set or on validation set
+if ON_PRETRAINED:
+  PRINT_FREQ = 80
+else:
+  PRINT_FREQ = 10
 
 trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}"
 
@@ -143,7 +146,7 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pin_memory=True, drop_last=True)
 
 val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=2 * BATCH_SIZE, shuffle=True, 
+    val_dataset, batch_size=BATCH_SIZE, shuffle=True, 
     pin_memory=True, drop_last=True)
 test_loader = torch.utils.data.DataLoader(
     test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
@@ -197,14 +200,18 @@ for epoch in range(EPOCH_NUM):
   else:
     loader = val_loader
   with tqdm.tqdm(loader, unit="batch") as tepoch: 
+    if WORKING_ENV == "LABS":
+      tepoch = loader
     for i, (img, label) in enumerate(tepoch):
       l = train_func(img, label)
       acc_l += l.item()
 
       if i % PRINT_FREQ == 0 and i != 0:
-        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)})")
+        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)})\n")
 
-        if not WORKING_ENV == 'LABS':
+        if WORKING_ENV == 'LABS':
+          print(f"batch {i} loss: {l.item()}")
+        else:
           tepoch.set_description(f"batch {i}")
           tepoch.set_postfix(loss=l.item())
 

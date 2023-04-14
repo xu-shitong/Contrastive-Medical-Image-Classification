@@ -68,6 +68,13 @@ from utils import (
 from multicropdataset import MultiCropDataset
 import resnet50 as resnet_models
 
+if torch.cuda.is_available():
+  dev = "cuda:0"
+else:
+  dev = "cpu"
+device = torch.device(dev)
+print("using device: ", dev)
+
 # Import packages
 import os,sys,humanize,psutil,GPUtil
 
@@ -83,7 +90,7 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 1
+EPOCH_NUM = 20
 BATCH_SIZE = 32
 BASE_LEARNING_RATE = 0.001
 FINAL_LR = 0.001
@@ -95,7 +102,7 @@ CROP_SIZE = [224, 96]
 MIN_SCALE_CROP = [0.14, 0.05]
 MAX_SCALE_CROP = [1, 0.14]
 PRINT_FREQ = 500
-PROJ_HEAD_EPOCH_NUM = 1
+PROJ_HEAD_EPOCH_NUM = 20
 
 trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-base{BASE_LEARNING_RATE}-final{FINAL_LR}-warmup{WARMUP_LR}_warmup-epoch{WARMUP_EPOCHS}_crop-num{CROP_NUM}-size{CROP_SIZE}_scale-crop-min{MIN_SCALE_CROP}-max{MAX_SCALE_CROP}_head-epoch{PROJ_HEAD_EPOCH_NUM}"
 arg_command = \
@@ -456,8 +463,10 @@ def train_func(train_loader, model, optimizer, epoch, lr_schedule, queue):
                         lr=optimizer.param_groups[0]["lr"],
                     )
                 )
-                if not WORKING_ENV == 'LABS':
-                    tepoch.set_description(f"batch {it}")
+                if WORKING_ENV == 'LABS':
+                    print(f"loss: {loss.item()}")
+                else:
+                    tepoch.set_description(f"batch")
                     tepoch.set_postfix(loss=loss.item())
 
                 acc_val_loss = 0
@@ -546,11 +555,13 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
         if i % 10 == 0 and not i == 0:
           summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
 
-  classification_head.train()
+  classification_head.eval()
   acc_l = 0
   confusion_matrix = torch.zeros((9, 9))
   with torch.no_grad():
     for (img, label) in test_loader:
+      label = label.cuda(non_blocking=True)
+
       q = model(img)[0]
       label_hat = classification_head(q)
       l = ce_loss(label_hat, label.squeeze())

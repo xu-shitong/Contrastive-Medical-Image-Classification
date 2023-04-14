@@ -59,6 +59,13 @@ import torchvision.models as models
 import loader
 import builder
 
+if torch.cuda.is_available():
+  dev = "cuda:0"
+else:
+  dev = "cpu"
+device = torch.device(dev)
+print("using device: ", dev)
+
 # Import packages
 import os,sys,humanize,psutil,GPUtil
 
@@ -74,7 +81,7 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
+EPOCH_NUM = 0
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
@@ -455,12 +462,14 @@ for epoch in range(args.start_epoch, args.epochs):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if not WORKING_ENV == 'LABS':
-          tepoch.set_description(f"batch {i}")
-          tepoch.set_postfix(loss=loss.item())
-
         # log performance
         if i % args.print_freq == 0 and not i == 0:
+          if WORKING_ENV == 'LABS':
+            print(f"batch {i} loss: {loss.item()}")
+          else:
+            tepoch.set_description(f"batch {i}")
+            tepoch.set_postfix(loss=loss.item())
+
           with torch.no_grad():
             model.eval()
             # evaluate on validation set
@@ -524,11 +533,14 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
           if i % 10 == 0 and not i == 0:
             summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
 
-    classification_head.train()
+    classification_head.eval()
     acc_l = 0
     confusion_matrix = torch.zeros((9, 9))
     with torch.no_grad():
       for (img, label) in test_loader:
+        img = img.cuda(args.gpu, non_blocking=True)
+        label = label.cuda(args.gpu, non_blocking=True)
+
         q = model.encoder_q(img)
         q = nn.functional.normalize(q, dim=1)
         label_hat = classification_head(q)
