@@ -509,7 +509,8 @@ model.eval()
 eval_set_info = [("val_loader", val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, PROJ_HEAD_EPOCH_NUM)]
 for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
     classification_head = nn.Linear(128, 9).cuda(args.gpu)
-    head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.05)
+    head_optimizer = torch.optim.SGD(model.parameters(), 0.03, momentum=0.9, weight_decay=1e-4)
+
     ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
     classification_head.train()

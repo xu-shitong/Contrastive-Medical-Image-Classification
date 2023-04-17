@@ -82,16 +82,16 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 120
+EPOCH_NUM = 15
 BATCH_SIZE = 128
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
 ON_PRETRAINED = False # if trained on pre-training set or on validation set
 if ON_PRETRAINED:
-  PRINT_FREQ = 80
+  PRINT_FREQ = 200
 else:
-  PRINT_FREQ = 10
+  PRINT_FREQ = 20
 
 trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}"
 
@@ -207,13 +207,19 @@ for epoch in range(EPOCH_NUM):
       acc_l += l.item()
 
       if i % PRINT_FREQ == 0 and i != 0:
-        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)})\n")
-
         if WORKING_ENV == 'LABS':
           print(f"batch {i} loss: {l.item()}")
         else:
           tepoch.set_description(f"batch {i}")
           tepoch.set_postfix(loss=l.item())
+
+        acc_val_l = 0
+        with torch.no_grad():
+          for img, label in pretrain_val_loader:
+            l = train_func(img, label, False)
+            acc_val_l += l.item()
+
+        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)}), val loss: {acc_val_l / len(pretrain_val_loader)}\n")
 
 torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
