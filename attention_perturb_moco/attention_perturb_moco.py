@@ -95,9 +95,10 @@ TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
 # ATTENTION_INFO = ("crop", 96, 96)
 ATTENTION_INFO = ("mask", 8, 8)
+COLOUR_AUG = True
 PROJ_HEAD_EPOCH_NUM = 40
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -326,17 +327,26 @@ def multi_label_loss(prediction, target):
 # traindir = os.path.join(args.data, 'train')
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                   std=[0.229, 0.224, 0.225])
-augmentation = [
-    transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-    transforms.RandomApply([
-        transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-    ], p=0.8),
-    transforms.RandomGrayscale(p=0.2),
-    transforms.RandomApply([loader.GaussianBlur([.1, 2.])], p=0.5),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    normalize
-]
+if COLOUR_AUG:
+    augmentation = [
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+        transforms.RandomApply([
+            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+        ], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.RandomApply([loader.GaussianBlur([.1, 2.])], p=0.5),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ]
+else:
+    augmentation = [
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+        transforms.RandomApply([loader.GaussianBlur([.1, 2.])], p=0.5),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ]
 
 # # legacy split dataset operation, should load splitted data instead
 # train_dataset = medmnist.PathMNIST("train", download=False, root=args.data)

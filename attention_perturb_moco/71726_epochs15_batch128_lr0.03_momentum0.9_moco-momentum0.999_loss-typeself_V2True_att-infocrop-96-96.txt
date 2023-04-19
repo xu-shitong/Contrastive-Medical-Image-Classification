@@ -1,3 +1,5 @@
+# no colour jittering and gray scale
+
 Epoch: [0][100/632]	Time  3.725 ( 3.757)	Data  0.000 ( 0.000)	TrainLoss 9.5976e+00 (8.5218e+00)	ValLoss 9.4836e+00 (9.5345e+00)
 Epoch: [0][200/632]	Time  3.732 ( 4.226)	Data  0.000 ( 0.000)	TrainLoss 9.2616e+00 (8.9944e+00)	ValLoss 8.8975e+00 (9.3024e+00)
 Epoch: [0][300/632]	Time  3.817 ( 4.374)	Data  0.000 ( 0.000)	TrainLoss 8.8887e+00 (8.9725e+00)	ValLoss 8.3667e+00 (9.0744e+00)
