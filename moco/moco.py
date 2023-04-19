@@ -548,7 +548,7 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
     head_val_loader = extract_data(eval_val_loader)
 
     classification_head = nn.Linear(128, 9).cuda(args.gpu)
-    head_optimizer = torch.optim.SGD(model.parameters(), 0.03, momentum=0.9, weight_decay=1e-4)
+    head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.03, momentum=0.9, weight_decay=1e-4)
 
     ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
