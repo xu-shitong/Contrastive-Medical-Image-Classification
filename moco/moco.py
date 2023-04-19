@@ -354,11 +354,19 @@ else:
 # torch.save(pretrain_set, "pretrain_set.data")
 # torch.save(pretrain_val_set, "pretrain_val_set.data")
 
+# val_dataset = medmnist.PathMNIST("val", download=False, root=args.data)
+
+# dev_train_len = int(len(val_dataset) * TRAIN_SET_RATIO)
+# dev_train_set, dev_val_set = torch.utils.data.random_split(val_dataset, [dev_train_len, len(val_dataset) - dev_train_len])
+# torch.save(dev_train_set, "dev_train_set.data")
+# torch.save(dev_val_set, "dev_val_set.data")
+
 # # proper dataset loading, by loading pre-splitted data
 pretrain_set = loader.MOCODataset(args.data + "/pretrain_set.data", augmentation)
 pretrain_val_set = loader.MOCODataset(args.data + "/pretrain_val_set.data", augmentation)
-val_dataset = medmnist.PathMNIST("val", download=False, root=args.data, 
-                                   transform=loader.TwoCropsTransform(transforms.Compose(augmentation)))
+
+dev_train_set = loader.MOCODataset(args.data + "/dev_train_set.data", augmentation)
+dev_val_set = loader.MOCODataset(args.data + "/dev_val_set.data", augmentation)
 test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
                                   transform=transforms.Compose([
                                     transforms.Resize(224),
@@ -373,14 +381,18 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pretrain_val_set, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=2 * args.batch_size, shuffle=True, 
+dev_train_loader = torch.utils.data.DataLoader(
+    dev_train_set, batch_size=2 * args.batch_size, shuffle=True, 
     pin_memory=True, drop_last=True)
+dev_val_loader = torch.utils.data.DataLoader(
+    dev_val_set, batch_size=2 * args.batch_size, shuffle=False, 
+    pin_memory=True, drop_last=True)
+
 test_loader = torch.utils.data.DataLoader(
     test_dataset, batch_size=2 * args.batch_size, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size: {len(val_dataset)}\ntest size: {len(test_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\ndev train size: {len(dev_train_set)}\ndev val size: {len(dev_val_set)}\ntest size: {len(test_dataset)}")
 
 """# Train"""
 
@@ -505,9 +517,33 @@ mem_report()
 
 # model = torch.load(f"{trial_name}.pickle")
 
+def extract_data(loader):
+  data_tensor = torch.zeros((0, 128)).cuda(args.gpu, non_blocking=True)
+  label_tensor = torch.zeros((0, 1)).cuda(args.gpu, non_blocking=True)
+  with torch.no_grad():
+    for images, labels in loader:
+      images[0] = images[0].cuda(args.gpu, non_blocking=True)
+      labels = labels.cuda(args.gpu, non_blocking=True)
+      
+      q = model.encoder_q(images[0])  # queries: NxC
+      q = nn.functional.normalize(q, dim=1)
+
+      data_tensor = torch.hstack([data_tensor, q])
+      label_tensor = torch.hstack([label_tensor, labels])
+
+  feature_dataset = torch.utils.data.TensorDataset(data_tensor, label_tensor)
+  feature_loader = torch.utils.data.DataLoader(
+    feature_dataset, batch_size=2 * args.batch_size, shuffle=True, drop_last=True)
+  
+  return feature_loader
+
+
 model.eval()
-eval_set_info = [("val_loader", val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, PROJ_HEAD_EPOCH_NUM)]
-for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
+eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, pretrain_val_loader, PROJ_HEAD_EPOCH_NUM)]
+for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_info:
+    head_train_loader = extract_data(eval_loader)
+    head_val_loader = extract_data(eval_val_loader)
+
     classification_head = nn.Linear(128, 9).cuda(args.gpu)
     head_optimizer = torch.optim.SGD(model.parameters(), 0.03, momentum=0.9, weight_decay=1e-4)
 
@@ -515,14 +551,8 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
 
     classification_head.train()
     for epoch in range(eval_epoch_num):
-      with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
-        for i, (images, labels) in enumerate(tepoch):
-          images[0] = images[0].cuda(args.gpu, non_blocking=True)
-          labels = labels.cuda(args.gpu, non_blocking=True)
-          
-          with torch.no_grad():
-            q = model.encoder_q(images[0])  # queries: NxC
-            q = nn.functional.normalize(q, dim=1)
+      with tqdm.tqdm(head_train_loader, unit="batch") as tepoch: 
+        for i, (q, labels) in enumerate(tepoch):
           y_hat = classification_head(q)
 
           l = ce_loss(y_hat, labels.squeeze())
@@ -532,7 +562,17 @@ for eval_loader_name, eval_loader, eval_epoch_num in eval_set_info:
           head_optimizer.step()
 
           if i % 10 == 0 and not i == 0:
-            summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}\n")
+            classification_head.eval()
+
+            acc_val_loss = 0
+            with torch.no_grad():
+              for (q, labels) in head_val_loader:                
+                y_hat = classification_head(q)
+                acc_val_loss += ce_loss(y_hat, labels.squeeze())
+            
+            classification_head.train()
+
+            summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}, val avg loss: {acc_val_loss / len(eval_val_loader)}\n")
 
     classification_head.eval()
     acc_l = 0

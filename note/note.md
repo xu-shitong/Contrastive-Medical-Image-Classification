@@ -56,8 +56,9 @@ Robust and Efficient Medical Imaging with Self-Supervision
 |                          | augmentetaion | MOCO & MOCO v2 & SwAV            | supervised large | supervised small | 
 |  ----                    | ----          | ----                             | ----             | ----             | 
 | pre-train set            | augmented     | backbone (+head?) model training | training         | not used         | 
-| pre-train validation set | augmented     | backbone model validation        | not used         | not used         | 
-| validation set           | augmented     | mlp head training                | not used         | traning          | 
+| pre-train validation set | augmented     | backbone model validation        | validation       | not used         | 
+| dev train set            | augmented     | mlp head training                | not used         | training          | 
+| dev val set              | augmented     | mlp head validation              | not used         | validation       | 
 | test set                 | not augmented | testing                          | testing          | testing          |
 
 
