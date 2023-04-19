@@ -91,9 +91,10 @@ LOSS_TYPE = "self"
 # LOSS_TYPE = "binary-ce"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
+COLOUR_AUG = True
 PROJ_HEAD_EPOCH_NUM = 20
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}_aug-colour{COLOUR_AUG}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -322,8 +323,7 @@ def multi_label_loss(prediction, target):
 # traindir = os.path.join(args.data, 'train')
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                   std=[0.229, 0.224, 0.225])
-if args.aug_plus:
-    # MoCo v2's aug: similar to SimCLR https://arxiv.org/abs/2002.05709
+if COLOUR_AUG:
     augmentation = [
         transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
         transforms.RandomApply([
@@ -336,11 +336,9 @@ if args.aug_plus:
         normalize
     ]
 else:
-    # MoCo v1's aug: the same as InstDisc https://arxiv.org/abs/1805.01978
     augmentation = [
         transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-        transforms.RandomGrayscale(p=0.2),
-        transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+        transforms.RandomApply([loader.GaussianBlur([.1, 2.])], p=0.5),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize
