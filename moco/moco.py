@@ -519,17 +519,20 @@ mem_report()
 
 def extract_data(loader):
   data_tensor = torch.zeros((0, 128)).cuda(args.gpu, non_blocking=True)
-  label_tensor = torch.zeros((0, 1)).cuda(args.gpu, non_blocking=True)
+  label_tensor = torch.zeros((0, 1), dtype=torch.int32).cuda(args.gpu, non_blocking=True)
   with torch.no_grad():
-    for images, labels in loader:
-      images[0] = images[0].cuda(args.gpu, non_blocking=True)
-      labels = labels.cuda(args.gpu, non_blocking=True)
-      
-      q = model.encoder_q(images[0])  # queries: NxC
-      q = nn.functional.normalize(q, dim=1)
+    with tqdm.tqdm(loader, unit="batch") as tepoch: 
+      if WORKING_ENV == 'LABS':
+        tepoch = loader
+      for images, labels in tepoch:
+        images[0] = images[0].cuda(args.gpu, non_blocking=True)
+        labels = labels.cuda(args.gpu, non_blocking=True)
+        
+        q = model.encoder_q(images[0])  # queries: NxC
+        q = nn.functional.normalize(q, dim=1)
 
-      data_tensor = torch.hstack([data_tensor, q])
-      label_tensor = torch.hstack([label_tensor, labels])
+        data_tensor = torch.vstack([data_tensor, q])
+        label_tensor = torch.vstack([label_tensor, labels])
 
   feature_dataset = torch.utils.data.TensorDataset(data_tensor, label_tensor)
   feature_loader = torch.utils.data.DataLoader(
@@ -552,6 +555,8 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
     classification_head.train()
     for epoch in range(eval_epoch_num):
       with tqdm.tqdm(head_train_loader, unit="batch") as tepoch: 
+        if WORKING_ENV == 'LABS':
+          tepoch = head_train_loader
         for i, (q, labels) in enumerate(tepoch):
           y_hat = classification_head(q)
 
