@@ -59,6 +59,7 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+from PIL import ImageFilter
 
 if torch.cuda.is_available():
   dev = "cuda:0"
@@ -92,8 +93,9 @@ if ON_PRETRAINED:
   PRINT_FREQ = 200
 else:
   PRINT_FREQ = 20
+COLOUR_AUG = True
 
-trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}"
+trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}"
 
 print("trial name: " + trial_name)
 
@@ -113,24 +115,49 @@ class SupervisedDataset():
         image, label = self.samples[index]
         return self.augmentation(image), label
 
+class GaussianBlur(object):
+    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
+
+    def __init__(self, sigma=[.1, 2.]):
+        self.sigma = sigma
+
+    def __call__(self, x):
+        sigma = random.uniform(self.sigma[0], self.sigma[1])
+        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return x
+
 # Data loading code
 # traindir = os.path.join(args.data, 'train')
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                   std=[0.229, 0.224, 0.225])
-augmentation = [
-    transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-    transforms.RandomGrayscale(p=0.2),
-    transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    normalize
-]
+if COLOUR_AUG:
+    augmentation = [
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+        transforms.RandomApply([
+            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+        ], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ]
+else:
+    augmentation = [
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+        transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ]
 
 # # proper dataset loading, by loading pre-splitted data
 pretrain_set = SupervisedDataset(ROOT + "/datasets/pretrain_set.data", augmentation=augmentation)
 pretrain_val_set = SupervisedDataset(ROOT + "/datasets/pretrain_val_set.data", augmentation=augmentation)
-val_dataset = medmnist.PathMNIST("val", download=False, root=ROOT + "/datasets/", 
-                                  transform=transforms.Compose(augmentation))
+
+dev_train_set = SupervisedDataset(ROOT + "/datasets/dev_train_set.data", augmentation=augmentation)
+dev_val_set = SupervisedDataset(ROOT + "/datasets/dev_val_set.data", augmentation=augmentation)
+
 test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
                                   transform=transforms.Compose([
                                     transforms.Resize(224),
@@ -145,14 +172,18 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pretrain_val_set, batch_size=2 * BATCH_SIZE, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=BATCH_SIZE, shuffle=True, 
+dev_train_loader = torch.utils.data.DataLoader(
+    dev_train_set, batch_size=BATCH_SIZE, shuffle=True, 
     pin_memory=True, drop_last=True)
+dev_val_loader = torch.utils.data.DataLoader(
+    dev_val_set, batch_size=2 * BATCH_SIZE, shuffle=False, 
+    pin_memory=True, drop_last=True)
+
 test_loader = torch.utils.data.DataLoader(
     test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
     pin_memory=True, drop_last=True)
 
-print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\nvalidation size: {len(val_dataset)}\ntest size: {len(test_dataset)}")
+print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\ndev train size: {len(dev_train_set)}\ndev val size: {len(dev_val_set)}\ntest size: {len(test_dataset)}")
 
 """# Train"""
 
@@ -197,8 +228,10 @@ for epoch in range(EPOCH_NUM):
   acc_l = 0
   if ON_PRETRAINED:
     loader = pretrain_loader
+    val_loader = pretrain_val_loader
   else:
-    loader = val_loader
+    loader = dev_train_loader
+    val_loader = dev_val_loader
   with tqdm.tqdm(loader, unit="batch") as tepoch: 
     if WORKING_ENV == "LABS":
       tepoch = loader
@@ -215,7 +248,7 @@ for epoch in range(EPOCH_NUM):
 
         acc_val_l = 0
         with torch.no_grad():
-          for img, label in pretrain_val_loader:
+          for img, label in val_loader:
             l = train_func(img, label, False)
             acc_val_l += l.item()
 
