@@ -252,7 +252,7 @@ for epoch in range(EPOCH_NUM):
             l = train_func(img, label, False)
             acc_val_l += l.item()
 
-        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)}), val loss: {acc_val_l / len(pretrain_val_loader)}\n")
+        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)}), val loss: {acc_val_l / len(val_loader)}\n")
 
 torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()
