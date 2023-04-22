@@ -105,7 +105,7 @@ HEAD_OPTIMISER = "SGD"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
+trial_name = f"epochs{EPOCH_NUM}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -415,7 +415,7 @@ model = builder.MoCo(
     models.__dict__[args.arch],
     args.moco_dim, args.moco_k, args.moco_m, args.moco_t, args.mlp)
 # print(model)
-model = torch.load("./71727_epochs15_batch128_lr0.03_momentum0.9_moco-momentum0.999_loss-typeself_V2True_att-infomask-8-8.pickle")
+# model = torch.load("./71727_epochs15_batch128_lr0.03_momentum0.9_moco-momentum0.999_loss-typeself_V2True_att-infomask-8-8.pickle")
 
 if args.gpu is not None:
   torch.cuda.set_device(args.gpu)
