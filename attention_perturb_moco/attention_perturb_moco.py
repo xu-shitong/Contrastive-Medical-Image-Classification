@@ -96,9 +96,16 @@ MOCO_V2 = True
 # ATTENTION_INFO = ("crop", 96, 96)
 ATTENTION_INFO = ("mask", 8, 8)
 COLOUR_AUG = True
+PRETRAIN_OPTIMISER = "SGD"
+# PRETRAIN_OPTIMISER = "Adam"
+# PRETRAIN_OPTIMISER = "AdamW"
+HEAD_LR = 0.03
+HEAD_OPTIMISER = "SGD"
+# HEAD_OPTIMISER = "Adam"
+# HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 
-trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}"
+trial_name = f"epochs{EPOCH_NUM}_batch{BATCH_SIZE}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_momentum{MOMENTUM}_moco-momentum{MOCO_MOMENTUM}_loss-type{LOSS_TYPE}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -408,6 +415,7 @@ model = builder.MoCo(
     models.__dict__[args.arch],
     args.moco_dim, args.moco_k, args.moco_m, args.moco_t, args.mlp)
 # print(model)
+model = torch.load("./71727_epochs15_batch128_lr0.03_momentum0.9_moco-momentum0.999_loss-typeself_V2True_att-infomask-8-8.pickle")
 
 if args.gpu is not None:
   torch.cuda.set_device(args.gpu)
@@ -415,9 +423,16 @@ if args.gpu is not None:
 
 criterion = multi_label_loss
 
-optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                            momentum=args.momentum,
-                            weight_decay=args.weight_decay)
+if PRETRAIN_OPTIMISER == "SGD":
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
+elif PRETRAIN_OPTIMISER == "Adam":
+    optimizer = torch.optim.Adam(model.parameters(), args.lr)
+elif PRETRAIN_OPTIMISER == "AdamW":
+    optimizer = torch.optim.AdamW(model.parameters(), args.lr)
+else:
+   raise NotImplementedError("pretrain optimiser: " + PRETRAIN_OPTIMISER)
 
 def attention_locating(grad):
   ''' 
@@ -634,7 +649,15 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
     head_val_loader = extract_data(eval_val_loader)
 
     classification_head = nn.Linear(128, 9).cuda(args.gpu)
-    head_optimizer = torch.optim.SGD(classification_head.parameters(), 0.03, momentum=0.9, weight_decay=1e-4)
+    
+    if HEAD_OPTIMISER == "SGD":
+        head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
+    elif HEAD_OPTIMISER == "Adam":
+        head_optimizer = torch.optim.Adam(classification_head.parameters(), HEAD_LR)
+    elif HEAD_OPTIMISER == "AdamW":
+        head_optimizer = torch.optim.AdamW(classification_head.parameters(), HEAD_LR)
+    else:
+      raise NotImplementedError("projection head optimiser: " + HEAD_OPTIMISER)
 
     ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
