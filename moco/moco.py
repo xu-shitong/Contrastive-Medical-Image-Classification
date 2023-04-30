@@ -83,7 +83,7 @@ mem_report()
 
 EPOCH_NUM = 0
 BATCH_SIZE = 128
-LEARNING_RATE = 0.03
+LEARNING_RATE = 0.0001
 MOMENTUM = 0.9 # momentum of SGD
 MOCO_MOMENTUM = 0.999 # momentum of moco
 LOSS_TYPE = "self"
@@ -92,14 +92,14 @@ LOSS_TYPE = "self"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
 COLOUR_AUG = True
-PRETRAIN_OPTIMISER = "SGD"
-# PRETRAIN_OPTIMISER = "Adam"
+# PRETRAIN_OPTIMISER = "SGD"
+PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
-HEAD_LR = 0.03
-HEAD_OPTIMISER = "SGD"
-# HEAD_OPTIMISER = "Adam"
+HEAD_LR = 0.01
+# HEAD_OPTIMISER = "SGD"
+HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
-PROJ_HEAD_EPOCH_NUM = 20
+PROJ_HEAD_EPOCH_NUM = 15
 
 trial_name = f"epochs{EPOCH_NUM}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
 arg_command = \
@@ -387,7 +387,7 @@ pretrain_val_loader = torch.utils.data.DataLoader(
     pin_memory=True, drop_last=True)
 
 dev_train_loader = torch.utils.data.DataLoader(
-    dev_train_set, batch_size=2 * args.batch_size, shuffle=True, 
+    dev_train_set, batch_size=args.batch_size, shuffle=True, 
     pin_memory=True, drop_last=True)
 dev_val_loader = torch.utils.data.DataLoader(
     dev_val_set, batch_size=2 * args.batch_size, shuffle=False, 
@@ -599,6 +599,106 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
             classification_head.train()
 
             summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}, val avg loss: {acc_val_loss / len(eval_val_loader)}\n")
+
+    classification_head.eval()
+    acc_l = 0
+    confusion_matrix = torch.zeros((9, 9))
+    with torch.no_grad():
+      for (img, label) in test_loader:
+        img = img.cuda(args.gpu, non_blocking=True)
+        label = label.cuda(args.gpu, non_blocking=True)
+
+        q = model.encoder_q(img)
+        q = nn.functional.normalize(q, dim=1)
+        label_hat = classification_head(q)
+        l = ce_loss(label_hat, label.squeeze())
+                
+        acc_l += l
+
+        for i in range(label.shape[0]):
+          confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
+
+    acc_f1 = 0
+    for i in range(confusion_matrix.shape[0]):
+      recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
+      precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
+      acc_f1 += 2 / (1 / precision + 1 / recall)
+
+    summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
+    summary.write("\n")
+
+    torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_{eval_loader_name}_confusion_matrix.pickle")
+    torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
+
+# training both models
+eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, pretrain_val_loader, PROJ_HEAD_EPOCH_NUM)]
+for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_info:
+    model = torch.load("/homes/sx119/Contrastive-Medical-Image-Classification/moco/72488_epochs60_lr-pretrain0.01-head0.01_moco-momentum0.999_V2True_aug-colourTrue_optimizer-pretrainAdam-headAdam.pickle")
+    classification_head = nn.Linear(128, 9).cuda(args.gpu)
+    
+    if PRETRAIN_OPTIMISER == "SGD":
+        model_optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                    momentum=args.momentum,
+                                    weight_decay=args.weight_decay)
+    elif PRETRAIN_OPTIMISER == "Adam":
+        model_optimizer = torch.optim.Adam(model.parameters(), args.lr)
+    elif PRETRAIN_OPTIMISER == "AdamW":
+        model_optimizer = torch.optim.AdamW(model.parameters(), args.lr)
+    else:
+      raise NotImplementedError("pretrain optimiser: " + PRETRAIN_OPTIMISER)
+
+    if HEAD_OPTIMISER == "SGD":
+        head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
+    elif HEAD_OPTIMISER == "Adam":
+        head_optimizer = torch.optim.Adam(classification_head.parameters(), HEAD_LR)
+    elif HEAD_OPTIMISER == "AdamW":
+        head_optimizer = torch.optim.AdamW(classification_head.parameters(), HEAD_LR)
+    else:
+      raise NotImplementedError("projection head optimiser: " + HEAD_OPTIMISER)
+    
+    ce_loss = nn.CrossEntropyLoss(reduction="mean")
+    
+    model.train()
+    classification_head.train()
+    for epoch in range(eval_epoch_num):
+      with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
+        for i, (images, labels) in enumerate(tepoch):
+          images[0] = images[0].cuda(args.gpu, non_blocking=True)
+          labels = labels.cuda(args.gpu, non_blocking=True)
+          
+          q = model.encoder_q(images[0])  # queries: NxC
+          q = nn.functional.normalize(q, dim=1)
+          y_hat = classification_head(q)
+
+          l = ce_loss(y_hat, labels.squeeze())
+
+          head_optimizer.zero_grad()
+          model_optimizer.zero_grad()
+          l.backward()
+          head_optimizer.step()
+          model_optimizer.step()
+
+          if i % 10 == 0 and not i == 0:
+            classification_head.eval()
+            model.eval()
+
+            acc_val_loss = 0
+            with torch.no_grad():
+              for (images, labels) in eval_val_loader:                
+                images[0] = images[0].cuda(args.gpu, non_blocking=True)
+                labels = labels.cuda(args.gpu, non_blocking=True)
+                
+                q = model.encoder_q(images[0])  # queries: NxC
+                q = nn.functional.normalize(q, dim=1)
+                y_hat = classification_head(q)
+
+                acc_val_loss += ce_loss(y_hat, labels.squeeze())
+            
+            classification_head.train()
+            model.train()
+
+            summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}, val avg loss: {acc_val_loss / len(eval_val_loader)}\n")
+
 
     classification_head.eval()
     acc_l = 0

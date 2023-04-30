@@ -85,17 +85,20 @@ mem_report()
 
 EPOCH_NUM = 15
 BATCH_SIZE = 128
-LEARNING_RATE = 0.03
+# OPTIMISER = "SGD"
+OPTIMISER = "Adam"
+# OPTIMISER = "AdamW"
+LEARNING_RATE = 0.01
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
-ON_PRETRAINED = False # if trained on pre-training set or on validation set
+ON_PRETRAINED = True # if trained on pre-training set or on validation set
 if ON_PRETRAINED:
   PRINT_FREQ = 200
 else:
   PRINT_FREQ = 20
-COLOUR_AUG = True
+COLOUR_AUG = False
 
-trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}"
+trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}"
 
 print("trial name: " + trial_name)
 
@@ -200,7 +203,14 @@ model = model.to(device)
 
 criterion = nn.CrossEntropyLoss(reduction="mean")
 
-optimizer = torch.optim.SGD(model.parameters(), LEARNING_RATE, momentum=0.9, weight_decay=1e-4)
+if OPTIMISER == "SGD":
+    optimizer = torch.optim.SGD(model.parameters(), LEARNING_RATE, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)
+elif OPTIMISER == "Adam":
+    optimizer = torch.optim.Adam(model.parameters(), LEARNING_RATE)
+elif OPTIMISER == "AdamW":
+    optimizer = torch.optim.AdamW(model.parameters(), LEARNING_RATE)
+else:
+   raise NotImplementedError("optimiser: " + OPTIMISER)
 
 def train_func(img, label, train=True, return_y=False):
   # train/evaluate on given data for one mini batch 
