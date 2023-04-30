@@ -85,20 +85,21 @@ mem_report()
 
 EPOCH_NUM = 15
 BATCH_SIZE = 128
+SHUFFLED_SET = False
 # OPTIMISER = "SGD"
 OPTIMISER = "Adam"
 # OPTIMISER = "AdamW"
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
-ON_PRETRAINED = True # if trained on pre-training set or on validation set
+ON_PRETRAINED = False # if trained on pre-training set or on validation set
 if ON_PRETRAINED:
   PRINT_FREQ = 200
 else:
   PRINT_FREQ = 20
-COLOUR_AUG = False
+COLOUR_AUG = True
 
-trial_name = f"epoch{EPOCH_NUM}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}"
+trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}"
 
 print("trial name: " + trial_name)
 
@@ -155,11 +156,15 @@ else:
     ]
 
 # # proper dataset loading, by loading pre-splitted data
-pretrain_set = SupervisedDataset(ROOT + "/datasets/pretrain_set.data", augmentation=augmentation)
-pretrain_val_set = SupervisedDataset(ROOT + "/datasets/pretrain_val_set.data", augmentation=augmentation)
+if SHUFFLED_SET:
+    prefix = "shuffled_"
+else:
+    prefix = ""
+pretrain_set = SupervisedDataset(ROOT + f"./datasets/{prefix}pretrain_set.data", augmentation)
+pretrain_val_set = SupervisedDataset(ROOT + f"./datasets/{prefix}pretrain_val_set.data", augmentation)
 
-dev_train_set = SupervisedDataset(ROOT + "/datasets/dev_train_set.data", augmentation=augmentation)
-dev_val_set = SupervisedDataset(ROOT + "/datasets/dev_val_set.data", augmentation=augmentation)
+dev_train_set = SupervisedDataset(ROOT + f"./datasets/{prefix}dev_train_set.data", augmentation)
+dev_val_set = SupervisedDataset(ROOT + f"./datasets/{prefix}dev_val_set.data", augmentation)
 
 test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
                                   transform=transforms.Compose([
