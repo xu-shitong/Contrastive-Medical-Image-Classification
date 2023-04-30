@@ -85,6 +85,7 @@ mem_report()
 
 EPOCH_NUM = 20
 BATCH_SIZE = 128
+SHUFFLED_SET = False
 LEARNING_RATE = 0.03
 MOMENTUM = 0.9 # momentum of SGD
 MOCO_MOMENTUM = 0.999 # momentum of moco
@@ -105,7 +106,7 @@ HEAD_OPTIMISER = "SGD"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 
-trial_name = f"epochs{EPOCH_NUM}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
+trial_name = f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -371,11 +372,15 @@ else:
 # torch.save(dev_val_set, "dev_val_set.data")
 
 # # proper dataset loading, by loading pre-splitted data
-pretrain_set = loader.MOCODataset(args.data + "/pretrain_set.data", augmentation)
-pretrain_val_set = loader.MOCODataset(args.data + "/pretrain_val_set.data", augmentation)
+if SHUFFLED_SET:
+    prefix = "shuffled_"
+else:
+    prefix = ""
+pretrain_set = loader.MOCODataset(args.data + f"/{prefix}pretrain_set.data", augmentation)
+pretrain_val_set = loader.MOCODataset(args.data + f"/{prefix}pretrain_val_set.data", augmentation)
 
-dev_train_set = loader.MOCODataset(args.data + "/dev_train_set.data", augmentation)
-dev_val_set = loader.MOCODataset(args.data + "/dev_val_set.data", augmentation)
+dev_train_set = loader.MOCODataset(args.data + f"/{prefix}dev_train_set.data", augmentation)
+dev_val_set = loader.MOCODataset(args.data + f"/{prefix}dev_val_set.data", augmentation)
 test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets/", 
                                   transform=transforms.Compose([
                                     transforms.Resize(224),
