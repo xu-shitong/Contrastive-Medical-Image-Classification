@@ -87,6 +87,11 @@ EPOCH_NUM = 20
 BATCH_SIZE = 128
 SHUFFLED_SET = False
 LEARNING_RATE = 0.03
+END_LR = 0.03
+LR_SCHEDULER = "linear"
+# LR_SCHEDULER = "cos"
+# LR_SCHEDULER = "multistep"
+MULTI_STEPS = [12, 16] # used only in multi step decay
 MOMENTUM = 0.9 # momentum of SGD
 MOCO_MOMENTUM = 0.999 # momentum of moco
 LOSS_TYPE = "self"
@@ -106,7 +111,8 @@ HEAD_OPTIMISER = "SGD"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 
-trial_name = f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
+trial_name = f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{','.join(MULTI_STEPS)}" \
+  f"-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -439,6 +445,15 @@ elif PRETRAIN_OPTIMISER == "AdamW":
 else:
    raise NotImplementedError("pretrain optimiser: " + PRETRAIN_OPTIMISER)
 
+if LR_SCHEDULER == "linear":
+    lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=END_LR / args.lr, total_iters=EPOCH_NUM)
+elif LR_SCHEDULER == "cos":
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCH_NUM // 3, eta_min=END_LR)
+elif LR_SCHEDULER == "multistep":
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=MULTI_STEPS)
+else:
+    raise NotImplementedError("lr scheduler" + LR_SCHEDULER)
+
 def attention_locating(grad):
   ''' 
   get centered at pixel with max grad value
@@ -606,6 +621,7 @@ for epoch in range(args.start_epoch, args.epochs):
           
           progress.display(i)
 
+    lr_scheduler.step()
 
     # if not args.multiprocessing_distributed or (args.multiprocessing_distributed
     #         and args.rank % ngpus_per_node == 0):

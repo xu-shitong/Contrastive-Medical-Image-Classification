@@ -90,6 +90,9 @@ SHUFFLED_SET = False
 OPTIMISER = "Adam"
 # OPTIMISER = "AdamW"
 LEARNING_RATE = 0.03
+END_LR = 0.03
+LR_SCHEDULER = "linear"
+# LR_SCHEDULER = "cos"
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
 ON_PRETRAINED = False # if trained on pre-training set or on validation set
@@ -99,7 +102,7 @@ else:
   PRINT_FREQ = 20
 COLOUR_AUG = True
 
-trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_batch{BATCH_SIZE}_lr{LEARNING_RATE}_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}"
+trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_batch{BATCH_SIZE}_lr{LEARNING_RATE}-{END_LR}_{LR_SCHEDULER}-decay_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}"
 
 print("trial name: " + trial_name)
 
@@ -215,7 +218,14 @@ elif OPTIMISER == "Adam":
 elif OPTIMISER == "AdamW":
     optimizer = torch.optim.AdamW(model.parameters(), LEARNING_RATE)
 else:
-   raise NotImplementedError("optimiser: " + OPTIMISER)
+    raise NotImplementedError("optimiser: " + OPTIMISER)
+
+if LR_SCHEDULER == "linear":
+    lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=END_LR / LEARNING_RATE, total_iters=EPOCH_NUM)
+elif LR_SCHEDULER == "cos":
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCH_NUM // 3, eta_min=END_LR)
+else:
+    raise NotImplementedError("lr scheduler" + LR_SCHEDULER)
 
 def train_func(img, label, train=True, return_y=False):
   # train/evaluate on given data for one mini batch 
@@ -267,7 +277,8 @@ for epoch in range(EPOCH_NUM):
             l = train_func(img, label, False)
             acc_val_l += l.item()
 
-        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)}), val loss: {acc_val_l / len(val_loader)}\n")
+        summary.write(f"Epoch {epoch}[{i}]: loss: {l.item()}({acc_l / (i + 1)}), val loss: {acc_val_l / len(val_loader)} lr {lr_scheduler.get_last_lr()}\n")
+    lr_scheduler.step()
 
 torch.save(model, f"{slurm_id}_{trial_name}.pickle")
 mem_report()

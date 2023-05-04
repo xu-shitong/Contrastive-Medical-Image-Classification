@@ -84,7 +84,12 @@ mem_report()
 EPOCH_NUM = 20
 BATCH_SIZE = 128
 SHUFFLED_SET = False
-LEARNING_RATE = 0.03
+LEARNING_RATE = 0.075
+END_LR = 0.075
+LR_SCHEDULER = "linear"
+# LR_SCHEDULER = "cos"
+# LR_SCHEDULER = "multistep"
+MULTI_STEPS = [12, 16] # used only in multi step decay
 MOMENTUM = 0.9 # momentum of SGD
 MOCO_MOMENTUM = 0.999 # momentum of moco
 LOSS_TYPE = "self"
@@ -93,16 +98,17 @@ LOSS_TYPE = "self"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
 COLOUR_AUG = True
-PRETRAIN_OPTIMISER = "SGD"
-# PRETRAIN_OPTIMISER = "Adam"
+# PRETRAIN_OPTIMISER = "SGD"
+PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
-HEAD_LR = 0.03
-HEAD_OPTIMISER = "SGD"
-# HEAD_OPTIMISER = "Adam"
+HEAD_LR = 0.01
+# HEAD_OPTIMISER = "SGD"
+HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
-PROJ_HEAD_EPOCH_NUM = 20
+PROJ_HEAD_EPOCH_NUM = 40
 
-trial_name = f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
+trial_name = f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{','.join(map(str, MULTI_STEPS))}" \
+  f"-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -438,6 +444,15 @@ elif PRETRAIN_OPTIMISER == "AdamW":
 else:
    raise NotImplementedError("pretrain optimiser: " + PRETRAIN_OPTIMISER)
 
+if LR_SCHEDULER == "linear":
+    lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=END_LR / args.lr, total_iters=EPOCH_NUM)
+elif LR_SCHEDULER == "cos":
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCH_NUM // 3, eta_min=END_LR)
+elif LR_SCHEDULER == "multistep":
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=MULTI_STEPS)
+else:
+    raise NotImplementedError("lr scheduler" + LR_SCHEDULER)
+
 if args.gpu is not None:
   cudnn.benchmark = True
 
@@ -521,6 +536,7 @@ for epoch in range(args.start_epoch, args.epochs):
           
           progress.display(i)
 
+    lr_scheduler.step()
 
     # if not args.multiprocessing_distributed or (args.multiprocessing_distributed
     #         and args.rank % ngpus_per_node == 0):
@@ -638,105 +654,105 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
     torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_{eval_loader_name}_confusion_matrix.pickle")
     torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
 
-# training both models
-eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, pretrain_val_loader, PROJ_HEAD_EPOCH_NUM)]
-for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_info:
-    model = torch.load("/homes/sx119/Contrastive-Medical-Image-Classification/moco/72488_epochs60_lr-pretrain0.01-head0.01_moco-momentum0.999_V2True_aug-colourTrue_optimizer-pretrainAdam-headAdam.pickle")
-    classification_head = nn.Linear(128, 9).cuda(args.gpu)
+# # training both models
+# eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, pretrain_val_loader, PROJ_HEAD_EPOCH_NUM)]
+# for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_info:
+#     model = torch.load(f"{trial_name}.pickle")
+#     classification_head = nn.Linear(128, 9).cuda(args.gpu)
     
-    if PRETRAIN_OPTIMISER == "SGD":
-        model_optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                    momentum=args.momentum,
-                                    weight_decay=args.weight_decay)
-    elif PRETRAIN_OPTIMISER == "Adam":
-        model_optimizer = torch.optim.Adam(model.parameters(), args.lr)
-    elif PRETRAIN_OPTIMISER == "AdamW":
-        model_optimizer = torch.optim.AdamW(model.parameters(), args.lr)
-    else:
-      raise NotImplementedError("pretrain optimiser: " + PRETRAIN_OPTIMISER)
+#     if PRETRAIN_OPTIMISER == "SGD":
+#         model_optimizer = torch.optim.SGD(model.parameters(), args.lr,
+#                                     momentum=args.momentum,
+#                                     weight_decay=args.weight_decay)
+#     elif PRETRAIN_OPTIMISER == "Adam":
+#         model_optimizer = torch.optim.Adam(model.parameters(), args.lr)
+#     elif PRETRAIN_OPTIMISER == "AdamW":
+#         model_optimizer = torch.optim.AdamW(model.parameters(), args.lr)
+#     else:
+#       raise NotImplementedError("pretrain optimiser: " + PRETRAIN_OPTIMISER)
 
-    if HEAD_OPTIMISER == "SGD":
-        head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
-    elif HEAD_OPTIMISER == "Adam":
-        head_optimizer = torch.optim.Adam(classification_head.parameters(), HEAD_LR)
-    elif HEAD_OPTIMISER == "AdamW":
-        head_optimizer = torch.optim.AdamW(classification_head.parameters(), HEAD_LR)
-    else:
-      raise NotImplementedError("projection head optimiser: " + HEAD_OPTIMISER)
+#     if HEAD_OPTIMISER == "SGD":
+#         head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
+#     elif HEAD_OPTIMISER == "Adam":
+#         head_optimizer = torch.optim.Adam(classification_head.parameters(), HEAD_LR)
+#     elif HEAD_OPTIMISER == "AdamW":
+#         head_optimizer = torch.optim.AdamW(classification_head.parameters(), HEAD_LR)
+#     else:
+#       raise NotImplementedError("projection head optimiser: " + HEAD_OPTIMISER)
     
-    ce_loss = nn.CrossEntropyLoss(reduction="mean")
+#     ce_loss = nn.CrossEntropyLoss(reduction="mean")
     
-    model.train()
-    classification_head.train()
-    for epoch in range(eval_epoch_num):
-      with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
-        for i, (images, labels) in enumerate(tepoch):
-          images[0] = images[0].cuda(args.gpu, non_blocking=True)
-          labels = labels.cuda(args.gpu, non_blocking=True)
+#     model.train()
+#     classification_head.train()
+#     for epoch in range(eval_epoch_num):
+#       with tqdm.tqdm(eval_loader, unit="batch") as tepoch: 
+#         for i, (images, labels) in enumerate(tepoch):
+#           images[0] = images[0].cuda(args.gpu, non_blocking=True)
+#           labels = labels.cuda(args.gpu, non_blocking=True)
           
-          q = model.encoder_q(images[0])  # queries: NxC
-          q = nn.functional.normalize(q, dim=1)
-          y_hat = classification_head(q)
+#           q = model.encoder_q(images[0])  # queries: NxC
+#           q = nn.functional.normalize(q, dim=1)
+#           y_hat = classification_head(q)
 
-          l = ce_loss(y_hat, labels.squeeze())
+#           l = ce_loss(y_hat, labels.squeeze())
 
-          head_optimizer.zero_grad()
-          model_optimizer.zero_grad()
-          l.backward()
-          head_optimizer.step()
-          model_optimizer.step()
+#           head_optimizer.zero_grad()
+#           model_optimizer.zero_grad()
+#           l.backward()
+#           head_optimizer.step()
+#           model_optimizer.step()
 
-          if i % 10 == 0 and not i == 0:
-            classification_head.eval()
-            model.eval()
+#           if i % 10 == 0 and not i == 0:
+#             classification_head.eval()
+#             model.eval()
 
-            acc_val_loss = 0
-            with torch.no_grad():
-              for (images, labels) in eval_val_loader:                
-                images[0] = images[0].cuda(args.gpu, non_blocking=True)
-                labels = labels.cuda(args.gpu, non_blocking=True)
+#             acc_val_loss = 0
+#             with torch.no_grad():
+#               for (images, labels) in eval_val_loader:                
+#                 images[0] = images[0].cuda(args.gpu, non_blocking=True)
+#                 labels = labels.cuda(args.gpu, non_blocking=True)
                 
-                q = model.encoder_q(images[0])  # queries: NxC
-                q = nn.functional.normalize(q, dim=1)
-                y_hat = classification_head(q)
+#                 q = model.encoder_q(images[0])  # queries: NxC
+#                 q = nn.functional.normalize(q, dim=1)
+#                 y_hat = classification_head(q)
 
-                acc_val_loss += ce_loss(y_hat, labels.squeeze())
+#                 acc_val_loss += ce_loss(y_hat, labels.squeeze())
             
-            classification_head.train()
-            model.train()
+#             classification_head.train()
+#             model.train()
 
-            summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}, val avg loss: {acc_val_loss / len(eval_val_loader)}\n")
+#             summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}, val avg loss: {acc_val_loss / len(eval_val_loader)}\n")
 
 
-    classification_head.eval()
-    acc_l = 0
-    confusion_matrix = torch.zeros((9, 9))
-    with torch.no_grad():
-      for (img, label) in test_loader:
-        img = img.cuda(args.gpu, non_blocking=True)
-        label = label.cuda(args.gpu, non_blocking=True)
+#     classification_head.eval()
+#     acc_l = 0
+#     confusion_matrix = torch.zeros((9, 9))
+#     with torch.no_grad():
+#       for (img, label) in test_loader:
+#         img = img.cuda(args.gpu, non_blocking=True)
+#         label = label.cuda(args.gpu, non_blocking=True)
 
-        q = model.encoder_q(img)
-        q = nn.functional.normalize(q, dim=1)
-        label_hat = classification_head(q)
-        l = ce_loss(label_hat, label.squeeze())
+#         q = model.encoder_q(img)
+#         q = nn.functional.normalize(q, dim=1)
+#         label_hat = classification_head(q)
+#         l = ce_loss(label_hat, label.squeeze())
                 
-        acc_l += l
+#         acc_l += l
 
-        for i in range(label.shape[0]):
-          confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
+#         for i in range(label.shape[0]):
+#           confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
 
-    acc_f1 = 0
-    for i in range(confusion_matrix.shape[0]):
-      recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
-      precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
-      acc_f1 += 2 / (1 / precision + 1 / recall)
+#     acc_f1 = 0
+#     for i in range(confusion_matrix.shape[0]):
+#       recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
+#       precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
+#       acc_f1 += 2 / (1 / precision + 1 / recall)
 
-    summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
-    summary.write("\n")
+#     summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
+#     summary.write("\n")
 
-    torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_{eval_loader_name}_confusion_matrix.pickle")
-    torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
+#     torch.save(confusion_matrix, f"{slurm_id}_{trial_name}_{eval_loader_name}_confusion_matrix.pickle")
+#     torch.save(classification_head, f"{slurm_id}_{trial_name}_head_{eval_loader_name}.pickle")
 
 if WORKING_ENV == 'LABS':
   summary.close()

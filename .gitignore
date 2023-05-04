@@ -3,3 +3,6 @@
 *.pickle
 MNIST/
 icl_dl_cw2_utils/
+*.txt
+*.xlsx
+main.ipynb
