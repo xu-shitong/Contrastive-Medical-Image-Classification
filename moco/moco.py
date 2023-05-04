@@ -106,9 +106,10 @@ HEAD_LR = 0.01
 HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
+REMOVE_MLP = True
 
 trial_name = f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{','.join(map(str, MULTI_STEPS))}" \
-  f"-head{HEAD_LR}_moco-momentum{MOCO_MOMENTUM}_V2{MOCO_V2}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}"
+  f"-head{HEAD_LR}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 arg_command = \
 f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_100\
 _--loss-type_{LOSS_TYPE}_{'' if WORKING_ENV == 'LOCAL' else '--gpu_0_'}{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
@@ -554,8 +555,13 @@ mem_report()
 
 # model = torch.load(f"{trial_name}.pickle")
 
+EMB_SIZE = 128
+if REMOVE_MLP:
+    model.fc = nn.Identity()
+    EMB_SIZE = 2048
+
 def extract_data(loader):
-  data_tensor = torch.zeros((0, 128)).cuda(args.gpu, non_blocking=True)
+  data_tensor = torch.zeros((0, EMB_SIZE)).cuda(args.gpu, non_blocking=True)
   label_tensor = torch.zeros((0, 1), dtype=torch.int32).cuda(args.gpu, non_blocking=True)
   with torch.no_grad():
     with tqdm.tqdm(loader, unit="batch") as tepoch: 
@@ -584,7 +590,7 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
     head_train_loader = extract_data(eval_loader)
     head_val_loader = extract_data(eval_val_loader)
 
-    classification_head = nn.Linear(128, 9).cuda(args.gpu)
+    classification_head = nn.Linear(EMB_SIZE, 9).cuda(args.gpu)
     
     if HEAD_OPTIMISER == "SGD":
         head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
@@ -658,7 +664,7 @@ for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_i
 # eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, pretrain_val_loader, PROJ_HEAD_EPOCH_NUM)]
 # for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_info:
 #     model = torch.load(f"{trial_name}.pickle")
-#     classification_head = nn.Linear(128, 9).cuda(args.gpu)
+#     classification_head = nn.Linear(EMB_SIZE, 9).cuda(args.gpu)
     
 #     if PRETRAIN_OPTIMISER == "SGD":
 #         model_optimizer = torch.optim.SGD(model.parameters(), args.lr,
