@@ -101,8 +101,9 @@ if ON_PRETRAINED:
 else:
   PRINT_FREQ = 20
 COLOUR_AUG = True
+NAIVE_RESNET = False # if mlp layer is on 1000 class from default resnet or on 2048 resnet cnn output
 
-trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_batch{BATCH_SIZE}_lr{LEARNING_RATE}-{END_LR}_{LR_SCHEDULER}-decay_momentum{MOMENTUM}_wd{WEIGHT_DECAY}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}"
+trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr{LEARNING_RATE}-{END_LR}_{LR_SCHEDULER}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}_naive-resnet{NAIVE_RESNET}"
 
 print("trial name: " + trial_name)
 
@@ -206,7 +207,11 @@ else:
 
 # create model
 model = models.resnet50()
-model.add_module("projection_head", nn.Linear(1000, 9))
+if NAIVE_RESNET:
+    model.add_module("projection_head", nn.Linear(1000, 9))
+else:
+    model.fc = nn.Identity()
+    model.add_module("projection_head", nn.Linear(2048, 9))
 model = model.to(device)
 
 criterion = nn.CrossEntropyLoss(reduction="mean")
