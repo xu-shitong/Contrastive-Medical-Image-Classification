@@ -39,13 +39,6 @@ import torchvision.models as models
 import loader
 import builder
 
-if torch.cuda.is_available():
-  dev = "cuda:0"
-else:
-  dev = "cpu"
-device = torch.device(dev)
-print("using device: ", dev)
-
 # Import packages
 import os,sys,humanize,psutil,GPUtil
 
@@ -57,15 +50,13 @@ def mem_report():
   for i, gpu in enumerate(GPUs):
     print('GPU {:d} ... Mem Free: {:.0f}MB / {:.0f}MB | Utilization {:3.0f}%'.format(i, gpu.memoryFree, gpu.memoryTotal, gpu.memoryUtil*100))
 
-mem_report()
-
 """# Hyperparameters"""
 
 EPOCH_NUM = 20
 BATCH_SIZE = 128
 SHUFFLED_SET = False
-LEARNING_RATE = 0.075
-END_LR = 0.075
+LEARNING_RATE = 0.01
+END_LR = 0.01
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
@@ -87,7 +78,6 @@ HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 REMOVE_MLP = True
-MULTI_GPU = True
 
 """# Training helper functions"""
 
@@ -307,15 +297,16 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_multi-gpu{MULTI_GPU}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
     f"-head{HEAD_LR}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 
-def main_worker(rank, world_size):
+def main_worker(rank, world_size, args):
   os.environ['MASTER_ADDR'] = 'localhost'
   os.environ['MASTER_PORT'] = '12355'
 
   # initialize the process group
-  torch.distributed.init_process_group("gloo", rank=rank, world_size=world_size)
+  torch.distributed.init_process_group("nccl", rank=rank, world_size=world_size)
+  torch.cuda.set_device(rank)
 
   model = builder.MoCo(
       models.__dict__[args.arch],
@@ -394,8 +385,10 @@ def main_worker(rank, world_size):
           data_time.update(time.time() - end)
 
           if args.gpu is not None:
-              images[0] = images[0].cuda(args.gpu, non_blocking=True)
-              images[1] = images[1].cuda(args.gpu, non_blocking=True)
+              # images[0] = images[0].cuda(args.gpu, non_blocking=True)
+              # images[1] = images[1].cuda(args.gpu, non_blocking=True)
+              images[0] = images[0].to(rank)
+              images[1] = images[1].to(rank)
 
           # compute output
           output, target = model(im_q=images[0], im_k=images[1], labels=labels)
@@ -412,27 +405,38 @@ def main_worker(rank, world_size):
           # measure elapsed time
           batch_time.update(time.time() - end)
           end = time.time()
+          if rank == 0:
+            print("batch time:", batch_time)
 
           # log performance
-          if i % args.print_freq == 0 and not i == 0 and rank == 0:
-
+          if i % args.print_freq == 0 and not i == 0:
+            
+            acc_val_loss = 0
             with torch.no_grad():
               model.eval()
               # evaluate on validation set
               for (images, labels) in pretrain_val_loader:
+                start = time.time()
                 if args.loss_type == 'self':
                   labels = None
                 if args.gpu is not None:
-                  images[0] = images[0].cuda(args.gpu, non_blocking=True)
-                  images[1] = images[1].cuda(args.gpu, non_blocking=True)
+                  images[0] = images[0].to(rank)
+                  images[1] = images[1].to(rank)
                 output, target = model(im_q=images[0], im_k=images[1], labels=labels, train=False)
-                loss = criterion(output, target)
-                # update_accuracy_meters(val_losses, val_top1, val_top5, output, target, loss, images[0].size(0))
-                val_losses.update(loss.item(), images[0].size(0))
+                val_loss = criterion(output, target)
+                print("val time:", time.time() - start)
+                acc_val_loss += val_loss.item()
               
               model.train()
             
-            progress.display(i)
+            acc_val_loss /= len(pretrain_val_loader)
+            _results = [None for _ in range(world_size)]
+            print("val_loss.item(): ", acc_val_loss)
+            torch.distributed.all_gather_object(_results, acc_val_loss)
+            val_losses.update(sum(_results) / len(_results), 1) # only updated once
+
+            if rank == 0:
+              progress.display(i)
 
       lr_scheduler.step()
 
@@ -447,16 +451,16 @@ def main_worker(rank, world_size):
 
   if rank == 0:
     torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
-    mlp_training(model, summary)
+    mlp_training(args, model, summary)
 
 """# Quantitative evaluation"""
 
-def mlp_training(model, summary):
-  model.load_state_dict(torch.load(f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle"))
+def mlp_training(args, model, summary):
+  # model.load_state_dict(torch.load("./73768_epochs1_shuffledFalse_lr-pretrain0.075-0.075-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue.pickle"))
 
   EMB_SIZE = 128
   if REMOVE_MLP:
-      model.fc = nn.Identity()
+      model.module.encoder_q.fc = nn.Identity()
       EMB_SIZE = 2048
 
   def extract_data(loader):
@@ -469,7 +473,7 @@ def mlp_training(model, summary):
           images[0] = images[0].cuda(args.gpu, non_blocking=True)
           labels = labels.cuda(args.gpu, non_blocking=True)
           
-          q = model.encoder_q(images[0])  # queries: NxC
+          q = model.module.encoder_q(images[0])  # queries: NxC
           q = nn.functional.normalize(q, dim=1)
 
           data_tensor = torch.vstack([data_tensor, q])
@@ -481,11 +485,12 @@ def mlp_training(model, summary):
     
     return feature_loader
   
-  pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader = generate_datasets(args, distributed=False)
+  pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler = generate_datasets(args, distributed=False)
 
 
   model.eval()
   eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8), ("pretrain_loader", pretrain_loader, pretrain_val_loader, PROJ_HEAD_EPOCH_NUM)]
+  # eval_set_info = [("dev_train_loader", dev_train_loader, dev_val_loader, PROJ_HEAD_EPOCH_NUM * 8)]
   for eval_loader_name, eval_loader, eval_val_loader, eval_epoch_num in eval_set_info:
       head_train_loader = extract_data(eval_loader)
       head_val_loader = extract_data(eval_val_loader)
@@ -537,7 +542,7 @@ def mlp_training(model, summary):
           img = img.cuda(args.gpu, non_blocking=True)
           label = label.cuda(args.gpu, non_blocking=True)
 
-          q = model.encoder_q(img)
+          q = model.module.encoder_q(img)
           q = nn.functional.normalize(q, dim=1)
           label_hat = classification_head(q)
           l = ce_loss(label_hat, label.squeeze())
@@ -661,6 +666,6 @@ if __name__ == '__main__':
 
 
     torch.multiprocessing.spawn(main_worker,
-          args=(torch.cuda.device_count(),),
+          args=(torch.cuda.device_count(),args),
           nprocs=torch.cuda.device_count(),
           join=True)
