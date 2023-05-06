@@ -420,12 +420,18 @@ def main_worker(rank, world_size, args):
       lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=MULTI_STEPS)
   else:
       raise NotImplementedError("lr scheduler" + LR_SCHEDULER)
+  
+  if ATTENTION_INFO[0] == "mask":
+    pert_func = attention_mask
+  elif ATTENTION_INFO[0] == "crop":
+    pert_func = attention_crop
+  else:
+    raise NotImplementedError("attention method: ", ATTENTION_INFO[0])
 
   if args.gpu is not None:
     cudnn.benchmark = True
 
   for epoch in range(args.start_epoch, args.epochs):
-      pretrain_sampler.set_epoch(epoch)
       adjust_learning_rate(optimizer, epoch, args)
 
       # train for one epoch
@@ -459,17 +465,28 @@ def main_worker(rank, world_size, args):
           data_time.update(time.time() - end)
 
           if args.gpu is not None:
-              # images[0] = images[0].cuda(args.gpu, non_blocking=True)
-              # images[1] = images[1].cuda(args.gpu, non_blocking=True)
               images[0] = images[0].to(rank)
               images[1] = images[1].to(rank)
 
+          # create attention pertubation
+          model.eval()
+          images[0] = images[0].clone().detach()
+          images[0].requires_grad = True
+
+          output, target = model(im_q=images[0], im_k=images[1], labels=labels)
+          loss = criterion(output, target)
+          loss.backward()
+
+          images[0] = pert_func(images[0], images[0].grad, ATTENTION_INFO[1], ATTENTION_INFO[2])
+          images[0] = images[0].detach()
+          optimizer.zero_grad()
+
           # compute output
+          model.train()
           output, target = model(im_q=images[0], im_k=images[1], labels=labels)
           loss = criterion(output, target)
 
           # compute gradient and do SGD step
-          optimizer.zero_grad()
           loss.backward()
           optimizer.step()
 
