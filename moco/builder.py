@@ -57,8 +57,8 @@ class MoCo(nn.Module):
           keys: shape: [batch_size, dim]
           labels: shape: [batch_size, 1], or None if positive sample pair is from the same image
         """
-        # # gather keys before updating queue
-        # keys = concat_all_gather(keys)
+        # gather keys before updating queue
+        keys = concat_all_gather(keys)
 
         batch_size = keys.shape[0]
 
@@ -88,7 +88,7 @@ class MoCo(nn.Module):
         num_gpus = batch_size_all // batch_size_this
 
         # random shuffle index
-        idx_shuffle = torch.randperm(batch_size_all).to(self.queue_label)
+        idx_shuffle = torch.randperm(batch_size_all).to(x.device)
 
         # broadcast to all gpus
         torch.distributed.broadcast(idx_shuffle, src=0)
@@ -126,7 +126,6 @@ class MoCo(nn.Module):
         Input:
             im_q: a batch of query images
             im_k: a batch of key images
-            label: category label of each image, shape: [batch_size, 1]
         Output:
             logits: shape: [batch_size, 1 + K]
             targets: shape: [batch_size, 1 + K]
@@ -140,14 +139,14 @@ class MoCo(nn.Module):
         with torch.no_grad():  # no gradient to keys
             self._momentum_update_key_encoder()  # update the key encoder
 
-            # # shuffle for making use of BN
-            # im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
+            # shuffle for making use of BN
+            im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
 
             k = self.encoder_k(im_k)  # keys: NxC
             k = nn.functional.normalize(k, dim=1)
 
-            # # undo shuffle
-            # k = self._batch_unshuffle_ddp(k, idx_unshuffle)
+            # undo shuffle
+            k = self._batch_unshuffle_ddp(k, idx_unshuffle)
 
         # compute logits
         # Einstein sum is more intuitive
