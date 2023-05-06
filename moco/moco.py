@@ -405,8 +405,6 @@ def main_worker(rank, world_size, args):
           # measure elapsed time
           batch_time.update(time.time() - end)
           end = time.time()
-          if rank == 0:
-            print("batch time:", batch_time)
 
           # log performance
           if i % args.print_freq == 0 and not i == 0:
@@ -416,7 +414,6 @@ def main_worker(rank, world_size, args):
               model.eval()
               # evaluate on validation set
               for (images, labels) in pretrain_val_loader:
-                start = time.time()
                 if args.loss_type == 'self':
                   labels = None
                 if args.gpu is not None:
@@ -424,14 +421,12 @@ def main_worker(rank, world_size, args):
                   images[1] = images[1].to(rank)
                 output, target = model(im_q=images[0], im_k=images[1], labels=labels, train=False)
                 val_loss = criterion(output, target)
-                print("val time:", time.time() - start)
                 acc_val_loss += val_loss.item()
               
               model.train()
             
             acc_val_loss /= len(pretrain_val_loader)
             _results = [None for _ in range(world_size)]
-            print("val_loss.item(): ", acc_val_loss)
             torch.distributed.all_gather_object(_results, acc_val_loss)
             val_losses.update(sum(_results) / len(_results), 1) # only updated once
 
