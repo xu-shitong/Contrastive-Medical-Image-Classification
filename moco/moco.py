@@ -54,6 +54,7 @@ def mem_report():
 
 EPOCH_NUM = 20
 BATCH_SIZE = 128
+LOAD_MODEL = ""
 SHUFFLED_SET = False
 LEARNING_RATE = 0.01
 END_LR = 0.01
@@ -278,7 +279,7 @@ def generate_datasets(args, distributed=True):
       pretrain_set, batch_size=args.batch_size, shuffle=(pretrain_sampler is None), 
       pin_memory=True, drop_last=True, num_workers=4, sampler=pretrain_sampler)
   pretrain_val_loader = torch.utils.data.DataLoader(
-      pretrain_val_set, batch_size=2 * args.batch_size, shuffle=False, 
+      pretrain_val_set, batch_size=args.batch_size, shuffle=False, 
       pin_memory=True, drop_last=True, num_workers=4, sampler=pretrain_val_sampler)
 
   dev_train_loader = torch.utils.data.DataLoader(
@@ -297,7 +298,7 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
     f"-head{HEAD_LR}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 
 def main_worker(rank, world_size, args):
@@ -312,12 +313,13 @@ def main_worker(rank, world_size, args):
       models.__dict__[args.arch],
       args.moco_dim, args.moco_k, args.moco_m, args.moco_t, args.mlp)
   # print(model)
-  # model = torch.load("./71727_epochs15_batch128_lr0.03_momentum0.9_moco-momentum0.999_loss-typeself_V2True_att-infomask-8-8.pickle")
   
   pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler = generate_datasets(args, distributed=True)
 
   model = model.to(rank)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+  if LOAD_MODEL != '':
+      model.load_state_dict(torch.load(LOAD_MODEL))
 
   criterion = generate_loss_func(args)
 
