@@ -52,12 +52,13 @@ def mem_report():
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
-BATCH_SIZE = 128
-LOAD_MODEL = ""
+EPOCH_NUM = 10
+BATCH_SIZE = 114
+# LOAD_MODEL = ""
+LOAD_MODEL = "73860_epochs20_shuffledFalse_load_lr-pretrain0.03-0.03-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainSGD-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
-LEARNING_RATE = 0.01
-END_LR = 0.01
+LEARNING_RATE = 0.03
+END_LR = 0.03
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
@@ -70,8 +71,8 @@ LOSS_TYPE = "self"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
 COLOUR_AUG = True
-# PRETRAIN_OPTIMISER = "SGD"
-PRETRAIN_OPTIMISER = "Adam"
+PRETRAIN_OPTIMISER = "SGD"
+# PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
 HEAD_LR = 0.01
 # HEAD_OPTIMISER = "SGD"
@@ -319,7 +320,7 @@ def main_worker(rank, world_size, args):
   model = model.to(rank)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
   if LOAD_MODEL != '':
-      model.load_state_dict(torch.load(LOAD_MODEL))
+      model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
 
   criterion = generate_loss_func(args)
 
@@ -353,6 +354,8 @@ def main_worker(rank, world_size, args):
     cudnn.benchmark = True
 
   for epoch in range(args.start_epoch, args.epochs):
+      print("process: ", rank, "epoch: ", epoch)
+      # mem_report()
       pretrain_sampler.set_epoch(epoch)
       adjust_learning_rate(optimizer, epoch, args)
 
@@ -564,7 +567,7 @@ def mlp_training(args, model, summary):
 
 if __name__ == '__main__':
     arg_command = \
-    f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_50\
+    f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--moco-k_{BATCH_SIZE * 512}_--print-freq_50\
     _--loss-type_{LOSS_TYPE}_--gpu_0_{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
 
     print(f"Running command {arg_command}")
