@@ -83,19 +83,21 @@ mem_report()
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 15
+EPOCH_NUM = 20
 BATCH_SIZE = 128
+LOAD_MODEL = ""
+# LOAD_MODEL = ""
 SHUFFLED_SET = False
 # OPTIMISER = "SGD"
 OPTIMISER = "Adam"
 # OPTIMISER = "AdamW"
-LEARNING_RATE = 0.03
-END_LR = 0.03
+LEARNING_RATE = 0.1
+END_LR = 0.1
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 MOMENTUM = 0.9 # momentum of SGD
 WEIGHT_DECAY = 1e-4 # weight decay for SGD
-ON_PRETRAINED = False # if trained on pre-training set or on validation set
+ON_PRETRAINED = True # if trained on pre-training set or on validation set
 if ON_PRETRAINED:
   PRINT_FREQ = 200
 else:
@@ -103,7 +105,7 @@ else:
 COLOUR_AUG = True
 NAIVE_RESNET = False # if mlp layer is on 1000 class from default resnet or on 2048 resnet cnn output
 
-trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr{LEARNING_RATE}-{END_LR}_{LR_SCHEDULER}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}_naive-resnet{NAIVE_RESNET}"
+trial_name = f"epoch{EPOCH_NUM}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr{LEARNING_RATE}-{END_LR}_{LR_SCHEDULER}_on-pretrain{ON_PRETRAINED}_aug-colour{COLOUR_AUG}_optimizer{OPTIMISER}_naive-resnet{NAIVE_RESNET}"
 
 print("trial name: " + trial_name)
 
@@ -179,21 +181,21 @@ test_dataset = medmnist.PathMNIST("test", download=False, root=ROOT + "/datasets
 
 pretrain_loader = torch.utils.data.DataLoader(
     pretrain_set, batch_size=BATCH_SIZE, shuffle=True, 
-    pin_memory=True, drop_last=True)
+    pin_memory=True, drop_last=True, num_workers=4)
 pretrain_val_loader = torch.utils.data.DataLoader(
     pretrain_val_set, batch_size=2 * BATCH_SIZE, shuffle=False, 
-    pin_memory=True, drop_last=True)
+    pin_memory=True, drop_last=True, num_workers=4)
 
 dev_train_loader = torch.utils.data.DataLoader(
     dev_train_set, batch_size=BATCH_SIZE, shuffle=True, 
-    pin_memory=True, drop_last=True)
+    pin_memory=True, drop_last=True, num_workers=4)
 dev_val_loader = torch.utils.data.DataLoader(
     dev_val_set, batch_size=2 * BATCH_SIZE, shuffle=False, 
-    pin_memory=True, drop_last=True)
+    pin_memory=True, drop_last=True, num_workers=4)
 
 test_loader = torch.utils.data.DataLoader(
     test_dataset, batch_size=2 * BATCH_SIZE, shuffle=False, 
-    pin_memory=True, drop_last=True)
+    pin_memory=True, drop_last=True, num_workers=4)
 
 print(f"pretrain size: {len(pretrain_set)}\npretrain validation size: {len(pretrain_val_set)}\ndev train size: {len(dev_train_set)}\ndev val size: {len(dev_val_set)}\ntest size: {len(test_dataset)}")
 
@@ -212,6 +214,8 @@ if NAIVE_RESNET:
 else:
     model.fc = nn.Identity()
     model.add_module("projection_head", nn.Linear(2048, 9))
+if LOAD_MODEL != "":
+   model = torch.load(LOAD_MODEL + ".pickle")
 model = model.to(device)
 
 criterion = nn.CrossEntropyLoss(reduction="mean")
