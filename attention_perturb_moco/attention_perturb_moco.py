@@ -39,13 +39,6 @@ import torchvision.models as models
 import loader
 import builder
 
-if torch.cuda.is_available():
-  dev = "cuda:0"
-else:
-  dev = "cpu"
-device = torch.device(dev)
-print("using device: ", dev)
-
 # Import packages
 import os,sys,humanize,psutil,GPUtil
 
@@ -57,15 +50,15 @@ def mem_report():
   for i, gpu in enumerate(GPUs):
     print('GPU {:d} ... Mem Free: {:.0f}MB / {:.0f}MB | Utilization {:3.0f}%'.format(i, gpu.memoryFree, gpu.memoryTotal, gpu.memoryUtil*100))
 
-mem_report()
-
 """# Hyperparameters"""
 
 EPOCH_NUM = 20
-BATCH_SIZE = 128
+BATCH_SIZE = 112
+LOAD_MODEL = ""
+# LOAD_MODEL = "73848_epochs20_shuffledFalse_load_lr-pretrain0.01-0.01-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
-LEARNING_RATE = 0.05
-END_LR = 0.05
+LEARNING_RATE = 0.01
+END_LR = 0.01
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
@@ -88,7 +81,7 @@ HEAD_LR = 0.01
 HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
-REMOVE_MLP = False
+REMOVE_MLP = True
 
 """# Training helper functions"""
 
@@ -289,7 +282,7 @@ def generate_datasets(args, distributed=True):
       pretrain_set, batch_size=args.batch_size, shuffle=(pretrain_sampler is None), 
       pin_memory=True, drop_last=True, num_workers=4, sampler=pretrain_sampler)
   pretrain_val_loader = torch.utils.data.DataLoader(
-      pretrain_val_set, batch_size=2 * args.batch_size, shuffle=False, 
+      pretrain_val_set, batch_size=args.batch_size, shuffle=False, 
       pin_memory=True, drop_last=True, num_workers=4, sampler=pretrain_val_sampler)
 
   dev_train_loader = torch.utils.data.DataLoader(
@@ -308,7 +301,7 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
     f"-head{HEAD_LR}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 
 def attention_locating(grad):
@@ -386,12 +379,13 @@ def main_worker(rank, world_size, args):
       models.__dict__[args.arch],
       args.moco_dim, args.moco_k, args.moco_m, args.moco_t, args.mlp)
   # print(model)
-  # model = torch.load("./71727_epochs15_batch128_lr0.03_momentum0.9_moco-momentum0.999_loss-typeself_V2True_att-infomask-8-8.pickle")
   
   pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler = generate_datasets(args, distributed=True)
 
   model = model.to(rank)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+  if LOAD_MODEL != '':
+      model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
 
   criterion = generate_loss_func(args)
 
@@ -432,6 +426,9 @@ def main_worker(rank, world_size, args):
     cudnn.benchmark = True
 
   for epoch in range(args.start_epoch, args.epochs):
+      print("process: ", rank, "epoch: ", epoch)
+      # mem_report()
+      pretrain_sampler.set_epoch(epoch)
       adjust_learning_rate(optimizer, epoch, args)
 
       # train for one epoch
@@ -653,7 +650,7 @@ def mlp_training(args, model, summary):
 
 if __name__ == '__main__':
     arg_command = \
-    f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--print-freq_50\
+    f"--epochs_{EPOCH_NUM}_-b_{BATCH_SIZE}_--lr_{LEARNING_RATE}_--momentum_{MOMENTUM}_--moco-m_{MOCO_MOMENTUM}_--moco-k_{BATCH_SIZE * 512}_--print-freq_50\
     _--loss-type_{LOSS_TYPE}_--gpu_0_{'--mlp_--aug-plus_--cos_' if MOCO_V2 else ''}{ROOT}./datasets".split("_")
 
     print(f"Running command {arg_command}")

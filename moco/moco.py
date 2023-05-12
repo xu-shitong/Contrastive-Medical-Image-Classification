@@ -52,27 +52,27 @@ def mem_report():
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 10
-BATCH_SIZE = 114
-# LOAD_MODEL = ""
-LOAD_MODEL = "73860_epochs20_shuffledFalse_load_lr-pretrain0.03-0.03-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainSGD-headAdam_remove-mlpTrue"
+EPOCH_NUM = 20
+BATCH_SIZE = 112
+LOAD_MODEL = ""
+# LOAD_MODEL = "73848_epochs20_shuffledFalse_load_lr-pretrain0.01-0.01-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
-LEARNING_RATE = 0.03
-END_LR = 0.03
+LEARNING_RATE = 0.01
+END_LR = 0.01
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
 MULTI_STEPS = [12, 16] # used only in multi step decay
 MOMENTUM = 0.9 # momentum of SGD
 MOCO_MOMENTUM = 0.999 # momentum of moco
-LOSS_TYPE = "self"
+# LOSS_TYPE = "self"
 # LOSS_TYPE = "cate-ce"
-# LOSS_TYPE = "binary-ce"
+LOSS_TYPE = "binary-ce"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
 COLOUR_AUG = True
-PRETRAIN_OPTIMISER = "SGD"
-# PRETRAIN_OPTIMISER = "Adam"
+# PRETRAIN_OPTIMISER = "SGD"
+PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
 HEAD_LR = 0.01
 # HEAD_OPTIMISER = "SGD"
@@ -299,7 +299,7 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    return f"epochs{EPOCH_NUM}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
     f"-head{HEAD_LR}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 
 def main_worker(rank, world_size, args):
