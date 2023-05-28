@@ -35,6 +35,7 @@ import torch.utils.data
 # import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.models as models
+import numpy as np
 
 import loader
 import builder
@@ -55,10 +56,9 @@ def mem_report():
 EPOCH_NUM = 20
 BATCH_SIZE = 112
 LOAD_MODEL = ""
-# LOAD_MODEL = "73848_epochs20_shuffledFalse_load_lr-pretrain0.01-0.01-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
-LEARNING_RATE = 0.03
-END_LR = 0.03
+LEARNING_RATE = 0.01
+END_LR = 0.01
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
@@ -70,9 +70,11 @@ LOSS_TYPE = "self"
 # LOSS_TYPE = "binary-ce"
 TRAIN_SET_RATIO = 0.9
 MOCO_V2 = True
+# ATTENTION_INFO = ("crop", 96, 96)
+ATTENTION_INFO = ("mask", 8, 8)
 COLOUR_AUG = True
-PRETRAIN_OPTIMISER = "SGD"
-# PRETRAIN_OPTIMISER = "Adam"
+# PRETRAIN_OPTIMISER = "SGD"
+PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
 HEAD_LR = 0.01
 # HEAD_OPTIMISER = "SGD"
@@ -80,6 +82,7 @@ HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 REMOVE_MLP = True
+EARLY_STOP = True
 
 """# Training helper functions"""
 
@@ -129,6 +132,43 @@ class ProgressMeter(object):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+    
+class GradCAMedResnet50(nn.Module):
+  def __init__(self, moco_model):
+    super(GradCAMedResnet50, self).__init__()
+
+    self.mlp = nn.Sequential(*list(moco_model.children())[-1])
+    self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+    self.features_conv = nn.Sequential(*list(moco_model.children())[:-2])
+    
+    self.gradients = None
+
+  def parameters(self):
+    return list(self.features_conv.parameters()) + list(self.mlp.parameters())
+  
+  def activations_hook(self, grad):
+    self.gradients = grad
+
+  def forward(self, x):
+
+    x = self.features_conv(x)
+    
+    # register the hook
+    h = x.register_hook(self.activations_hook)
+
+    x = self.avgpool(x)
+    x = self.mlp(x.squeeze())
+
+    return x
+    
+  # method for the gradient extraction
+  def get_activations_gradient(self):
+    return self.gradients
+
+  # method for the activation exctraction
+  def get_activations(self, x):
+    return self.features_conv(x)
+
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -299,8 +339,71 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
-    f"-head{HEAD_LR}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
+    return f"epochs{EPOCH_NUM}_early-stop{EARLY_STOP}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    f"-head{HEAD_LR}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
+
+def attention_locating(grad):
+  ''' 
+  get centered at pixel with max grad value
+  
+  Input: 
+  - grad: shape (batch_size, 3, H, W)
+  - h, w: int
+
+  Output:
+  - center_z, center_x, center_y: shape: (batch_size, )
+  '''
+  b, c, h, w = grad.shape
+  index = grad.reshape((b, -1)).argmax(dim=-1)
+  center_z = torch.div(index, (w * h), rounding_mode='trunc')
+  center_h, center_w = torch.div((index - center_z * w * h), w, rounding_mode='trunc'), ((index - center_z * w * h)) % w
+  return center_z, center_h, center_w
+
+def attention_crop(img, attention, h, w):
+  '''
+  crop the region around the max grad, cropped region of size (h, w)
+
+  Input:
+  - img, attention: shape: (batch_size, 3, H, W)
+
+  Output: 
+  - shape: img with no grad, shape: (batch_size, 3, H, W)
+  '''
+  center_z, center_h, center_w = attention_locating(attention)
+  h_axis = torch.from_numpy(np.linspace(center_h.cpu() - h / 2, center_h.cpu() + h / 2, img.shape[2])).to(img.device).T / img.shape[2]
+  w_axis = torch.from_numpy(np.linspace(center_w.cpu() - w / 2, center_w.cpu() + w / 2, img.shape[3])).to(img.device).T / img.shape[3]
+  h_axis = h_axis[:, :, None, None].repeat(1,1,img.shape[3],1)
+  w_axis = w_axis[:, None, :, None].repeat(1,img.shape[2],1,1)
+  grid = torch.cat([w_axis, h_axis], dim=-1)
+  grid = grid * 2 - 1
+  return nn.functional.grid_sample(img, grid)
+
+def attention_mask(img, attention, h, w):
+  '''
+  mask the region around the max grad
+
+  Input:
+  - img, attention: shape: (batch_size, 3, H, W)
+  - h, w: number of patches along each side of image, H / h and W / w must be integer
+
+  Output: 
+  - shape: img with no grad, shape: (batch_size, 3, H, W)
+  '''
+
+  b, c, H, W = img.shape
+  patch_size = (int(H / h), int(W / w))
+
+  patches = nn.functional.unfold(attention.sum(dim=1, keepdim=True), kernel_size=patch_size, stride=patch_size)
+
+  mask = torch.zeros((b, patches.shape[-1])).to(img.device)
+  mask = mask.scatter(1, patches.sum(dim=1).argmax(dim=-1)[:, None], 1)
+
+  mask = mask[:, None, :].repeat_interleave(patches.shape[1], dim=1)
+  mask = nn.functional.fold(mask, (H, W), kernel_size=patch_size, stride=patch_size)
+  
+  img = img.masked_fill(torch.gt(mask, 0), 0)
+  
+  return img
 
 def main_worker(rank, world_size, args):
   os.environ['MASTER_ADDR'] = 'localhost'
@@ -318,6 +421,7 @@ def main_worker(rank, world_size, args):
   pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler = generate_datasets(args, distributed=True)
 
   model = model.to(rank)
+  model.encoder_q = GradCAMedResnet50(model.encoder_q)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
   if LOAD_MODEL != '':
       model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
@@ -350,6 +454,13 @@ def main_worker(rank, world_size, args):
       lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=MULTI_STEPS)
   else:
       raise NotImplementedError("lr scheduler" + LR_SCHEDULER)
+  
+  if ATTENTION_INFO[0] == "mask":
+    pert_func = attention_mask
+  elif ATTENTION_INFO[0] == "crop":
+    pert_func = attention_crop
+  else:
+    raise NotImplementedError("attention method: ", ATTENTION_INFO[0])
 
   if args.gpu is not None:
     cudnn.benchmark = True
@@ -379,6 +490,7 @@ def main_worker(rank, world_size, args):
       # switch to train mode
       model.train()
 
+      _results = []
       end = time.time()
       with tqdm.tqdm(pretrain_loader, unit="batch") as tepoch: 
         tepoch = pretrain_loader
@@ -391,17 +503,51 @@ def main_worker(rank, world_size, args):
           data_time.update(time.time() - end)
 
           if args.gpu is not None:
-              # images[0] = images[0].cuda(args.gpu, non_blocking=True)
-              # images[1] = images[1].cuda(args.gpu, non_blocking=True)
               images[0] = images[0].to(rank)
               images[1] = images[1].to(rank)
 
+          # create attention pertubation
+          model.eval()
+          images[0] = images[0].clone().detach()
+
+          output, target = model(im_q=images[0], im_k=images[1], labels=labels, train=False)
+          loss = criterion(output, target)
+          loss.backward()
+
+          gradients = model.module.encoder_q.get_activations_gradient()
+
+          # pool the gradients across the channels
+          pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
+
+          # get the activations of the last convolutional layer
+          activations = model.module.encoder_q.get_activations(images[0]).detach()
+
+          # weight the channels by corresponding gradients
+          for i in range(2048):
+              activations[:, i, :, :] *= pooled_gradients[i]
+              
+          # average the channels of the activations
+          heatmap = torch.mean(activations, dim=1).squeeze()
+
+          # # relu on top of the heatmap
+          # # expression (2) in https://arxiv.org/pdf/1610.02391.pdf
+          # heatmap = np.maximum(heatmap, 0)
+
+          # # normalize the heatmap
+          # heatmap /= torch.max(heatmap)
+
+          heatmap = nn.functional.interpolate(heatmap.unsqueeze(1), size=(224, 224))
+
+          images[0] = pert_func(images[0], heatmap, ATTENTION_INFO[1], ATTENTION_INFO[2])
+          images[0] = images[0].detach()
+          optimizer.zero_grad()
+
           # compute output
+          model.train()
           output, target = model(im_q=images[0], im_k=images[1], labels=labels)
           loss = criterion(output, target)
 
           # compute gradient and do SGD step
-          optimizer.zero_grad()
           loss.backward()
           optimizer.step()
 
@@ -430,7 +576,7 @@ def main_worker(rank, world_size, args):
                 acc_val_loss += val_loss.item()
               
               model.train()
-            
+            print("got _results")
             acc_val_loss /= len(pretrain_val_loader)
             _results = [None for _ in range(world_size)]
             torch.distributed.all_gather_object(_results, acc_val_loss)
@@ -438,10 +584,10 @@ def main_worker(rank, world_size, args):
 
             if rank == 0:
               progress.display(i)
-              if sum(_results) / len(_results) < min_val_loss:
-                 min_val_loss = sum(_results) / len(_results)
-                 torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
-                 summary.write("saved\n")
+      if EARLY_STOP and rank == 0 and sum(_results) / len(_results) < min_val_loss:
+        min_val_loss = sum(_results) / len(_results)
+        torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
+        summary.write("saved\n")
 
       lr_scheduler.step()
 
@@ -455,13 +601,14 @@ def main_worker(rank, world_size, args):
       #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
   if rank == 0:
-    # torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
+    if not EARLY_STOP:
+        torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
     mlp_training(args, model, summary)
 
 """# Quantitative evaluation"""
 
 def mlp_training(args, model, summary):
-  # model.load_state_dict(torch.load("./73768_epochs1_shuffledFalse_lr-pretrain0.075-0.075-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue.pickle"))
+  model.load_state_dict(torch.load(f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle"))
 
   EMB_SIZE = 128
   if REMOVE_MLP:
@@ -674,3 +821,5 @@ if __name__ == '__main__':
           args=(torch.cuda.device_count(),args),
           nprocs=torch.cuda.device_count(),
           join=True)
+
+

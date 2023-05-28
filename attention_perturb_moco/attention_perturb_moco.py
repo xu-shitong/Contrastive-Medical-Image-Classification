@@ -35,6 +35,7 @@ import torch.utils.data
 # import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.models as models
+import numpy as np
 
 import loader
 import builder
@@ -73,8 +74,8 @@ MOCO_V2 = True
 # ATTENTION_INFO = ("crop", 96, 96)
 ATTENTION_INFO = ("mask", 8, 8)
 COLOUR_AUG = True
-# PRETRAIN_OPTIMISER = "SGD"
-PRETRAIN_OPTIMISER = "Adam"
+PRETRAIN_OPTIMISER = "SGD"
+# PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
 HEAD_LR = 0.01
 # HEAD_OPTIMISER = "SGD"
@@ -301,7 +302,7 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    return f"epochs{EPOCH_NUM}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
     f"-head{HEAD_LR}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 
 def attention_locating(grad):
@@ -332,8 +333,8 @@ def attention_crop(img, attention, h, w):
   - shape: img with no grad, shape: (batch_size, 3, H, W)
   '''
   center_z, center_h, center_w = attention_locating(attention)
-  h_axis = torch.from_numpy(np.linspace(center_h.cpu() - h / 2, center_h.cpu() + h / 2, img.shape[2])).cuda(args.gpu, non_blocking=True).T / img.shape[2]
-  w_axis = torch.from_numpy(np.linspace(center_w.cpu() - w / 2, center_w.cpu() + w / 2, img.shape[3])).cuda(args.gpu, non_blocking=True).T / img.shape[3]
+  h_axis = torch.from_numpy(np.linspace(center_h.cpu() - h / 2, center_h.cpu() + h / 2, img.shape[2])).to(img.device).T / img.shape[2]
+  w_axis = torch.from_numpy(np.linspace(center_w.cpu() - w / 2, center_w.cpu() + w / 2, img.shape[3])).to(img.device).T / img.shape[3]
   h_axis = h_axis[:, :, None, None].repeat(1,1,img.shape[3],1)
   w_axis = w_axis[:, None, :, None].repeat(1,img.shape[2],1,1)
   grid = torch.cat([w_axis, h_axis], dim=-1)
@@ -357,7 +358,7 @@ def attention_mask(img, attention, h, w):
 
   patches = nn.functional.unfold(attention.sum(dim=1, keepdim=True), kernel_size=patch_size, stride=patch_size)
 
-  mask = torch.zeros((b, patches.shape[-1])).cuda(args.gpu, non_blocking=True)
+  mask = torch.zeros((b, patches.shape[-1])).to(img.device)
   mask = mask.scatter(1, patches.sum(dim=1).argmax(dim=-1)[:, None], 1)
 
   mask = mask[:, None, :].repeat_interleave(patches.shape[1], dim=1)
@@ -388,6 +389,7 @@ def main_worker(rank, world_size, args):
       model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
 
   criterion = generate_loss_func(args)
+  min_val_loss = float("inf")
 
   if rank == 0:
       slurm_id = os.environ["SLURM_JOB_ID"]
@@ -520,6 +522,10 @@ def main_worker(rank, world_size, args):
 
             if rank == 0:
               progress.display(i)
+              if sum(_results) / len(_results) < min_val_loss:
+                 min_val_loss = sum(_results) / len(_results)
+                 torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
+                 summary.write("saved\n")
 
       lr_scheduler.step()
 
@@ -533,7 +539,7 @@ def main_worker(rank, world_size, args):
       #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
   if rank == 0:
-    torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
+    # torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
     mlp_training(args, model, summary)
 
 """# Quantitative evaluation"""
