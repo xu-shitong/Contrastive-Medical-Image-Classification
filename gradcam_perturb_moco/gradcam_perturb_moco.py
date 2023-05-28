@@ -142,7 +142,8 @@ class GradCAMedResnet50(nn.Module):
     self.features_conv = nn.Sequential(*list(moco_model.children())[:-2])
     
     self.gradients = None
-
+    self.activations = None
+  
   def parameters(self):
     return list(self.features_conv.parameters()) + list(self.mlp.parameters())
   
@@ -154,8 +155,10 @@ class GradCAMedResnet50(nn.Module):
     x = self.features_conv(x)
     
     # register the hook
-    h = x.register_hook(self.activations_hook)
-
+    if x.requires_grad:
+        h = x.register_hook(self.activations_hook)
+        self.activations = x.detach().clone()
+    
     x = self.avgpool(x)
     x = self.mlp(x.squeeze())
 
@@ -167,7 +170,7 @@ class GradCAMedResnet50(nn.Module):
 
   # method for the activation exctraction
   def get_activations(self, x):
-    return self.features_conv(x)
+    return self.activations
 
 
 
@@ -421,10 +424,10 @@ def main_worker(rank, world_size, args):
   pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler = generate_datasets(args, distributed=True)
 
   model = model.to(rank)
-  model.encoder_q = GradCAMedResnet50(model.encoder_q)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
   if LOAD_MODEL != '':
       model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
+  model.module.encoder_q = GradCAMedResnet50(model.module.encoder_q)
 
   criterion = generate_loss_func(args)
   min_val_loss = float("inf")
@@ -523,8 +526,8 @@ def main_worker(rank, world_size, args):
           activations = model.module.encoder_q.get_activations(images[0]).detach()
 
           # weight the channels by corresponding gradients
-          for i in range(2048):
-              activations[:, i, :, :] *= pooled_gradients[i]
+          for j in range(2048):
+              activations[:, j, :, :] *= pooled_gradients[j]
               
           # average the channels of the activations
           heatmap = torch.mean(activations, dim=1).squeeze()
@@ -576,7 +579,6 @@ def main_worker(rank, world_size, args):
                 acc_val_loss += val_loss.item()
               
               model.train()
-            print("got _results")
             acc_val_loss /= len(pretrain_val_loader)
             _results = [None for _ in range(world_size)]
             torch.distributed.all_gather_object(_results, acc_val_loss)
