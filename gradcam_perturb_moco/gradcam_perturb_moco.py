@@ -55,10 +55,10 @@ def mem_report():
 
 EPOCH_NUM = 20
 BATCH_SIZE = 112
-LOAD_MODEL = ""
+LOAD_MODEL = "76780_epochs20_early-stopFalse_supervisedFalse_shuffledFalse_load76613_lr-pretrain0.01-0.01-linear-decay-12-16-head0.01_att-infomask-8-8_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
-LEARNING_RATE = 0.01
-END_LR = 0.01
+LEARNING_RATE = 0.005
+END_LR = 0.005
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
@@ -82,7 +82,8 @@ HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 REMOVE_MLP = True
-EARLY_STOP = True
+EARLY_STOP = False
+NEG_LOSS = False
 
 """# Training helper functions"""
 
@@ -342,8 +343,8 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_early-stop{EARLY_STOP}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
-    f"-head{HEAD_LR}_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
+    return f"epochs{EPOCH_NUM}_early-stop{EARLY_STOP}_neg-loss{NEG_LOSS}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    f"_att-info{'-'.join([str(x) for x in ATTENTION_INFO])}_optimizer-pretrain{PRETRAIN_OPTIMISER}"
 
 def attention_locating(grad):
   ''' 
@@ -425,9 +426,9 @@ def main_worker(rank, world_size, args):
 
   model = model.to(rank)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+  model.module.encoder_q = GradCAMedResnet50(model.module.encoder_q)
   if LOAD_MODEL != '':
       model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
-  model.module.encoder_q = GradCAMedResnet50(model.module.encoder_q)
 
   criterion = generate_loss_func(args)
   min_val_loss = float("inf")
@@ -515,6 +516,8 @@ def main_worker(rank, world_size, args):
 
           output, target = model(im_q=images[0], im_k=images[1], labels=labels, train=False)
           loss = criterion(output, target)
+          if NEG_LOSS:
+              loss = -loss
           loss.backward()
 
           gradients = model.module.encoder_q.get_activations_gradient()
@@ -614,7 +617,7 @@ def mlp_training(args, model, summary):
 
   EMB_SIZE = 128
   if REMOVE_MLP:
-      model.module.encoder_q.fc = nn.Identity()
+      model.module.encoder_q.mlp = nn.Identity()
       EMB_SIZE = 2048
 
   def extract_data(loader):
@@ -705,14 +708,20 @@ def mlp_training(args, model, summary):
 
           for i in range(label.shape[0]):
             confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
-
+      
       acc_f1 = 0
+      acc_recall = 0
+      acc_precision = 0
       for i in range(confusion_matrix.shape[0]):
         recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
         precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
-        acc_f1 += 2 / (1 / precision + 1 / recall)
 
-      summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
+        acc_f1 += 2 / (1 / precision + 1 / recall)
+        acc_recall += recall
+        acc_precision += precision
+
+      summary.write(f"test set loss: {acc_l / len(test_loader)}, F1: {acc_f1 / confusion_matrix.shape[0]}, precision: {acc_precision / confusion_matrix.shape[0]}, recall: {acc_recall / confusion_matrix.shape[0]}\n")
+
       summary.write("\n")
 
       slurm_id = os.environ["SLURM_JOB_ID"]

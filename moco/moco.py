@@ -52,13 +52,12 @@ def mem_report():
 
 """# Hyperparameters"""
 
-EPOCH_NUM = 20
+EPOCH_NUM = 0
 BATCH_SIZE = 112
-LOAD_MODEL = ""
-# LOAD_MODEL = "73848_epochs20_shuffledFalse_load_lr-pretrain0.01-0.01-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue"
+LOAD_MODEL = "76305_epochs20_early-stopFalse_supervisedFalse_shuffledFalse_load76227_lr-pretrain0.1-0.1-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainSGD-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
-LEARNING_RATE = 0.03
-END_LR = 0.03
+LEARNING_RATE = 0.1
+END_LR = 0.1
 LR_SCHEDULER = "linear"
 # LR_SCHEDULER = "cos"
 # LR_SCHEDULER = "multistep"
@@ -74,12 +73,13 @@ COLOUR_AUG = True
 PRETRAIN_OPTIMISER = "SGD"
 # PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
-HEAD_LR = 0.01
+HEAD_LR = 0.0005
 # HEAD_OPTIMISER = "SGD"
 HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
 PROJ_HEAD_EPOCH_NUM = 40
 REMOVE_MLP = True
+EARLY_STOP = False
 
 """# Training helper functions"""
 
@@ -299,7 +299,7 @@ def generate_datasets(args, distributed=True):
   return pretrain_loader, pretrain_val_loader, dev_train_loader, dev_val_loader, test_loader, pretrain_sampler
 
 def generate_trial_name():
-    return f"epochs{EPOCH_NUM}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
+    return f"epochs{EPOCH_NUM}_early-stop{EARLY_STOP}_supervised{LOSS_TYPE != 'self'}_shuffled{SHUFFLED_SET}_load{'' if LOAD_MODEL == '' else LOAD_MODEL.split('_')[0]}_lr-pretrain{LEARNING_RATE}-{END_LR}-{LR_SCHEDULER}-decay-{'-'.join(map(str, MULTI_STEPS))}" \
     f"-head{HEAD_LR}_aug-colour{COLOUR_AUG}_optimizer-pretrain{PRETRAIN_OPTIMISER}-head{HEAD_OPTIMISER}_remove-mlp{REMOVE_MLP}"
 
 def main_worker(rank, world_size, args):
@@ -438,10 +438,10 @@ def main_worker(rank, world_size, args):
 
             if rank == 0:
               progress.display(i)
-              if sum(_results) / len(_results) < min_val_loss:
-                 min_val_loss = sum(_results) / len(_results)
-                 torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
-                 summary.write("saved\n")
+      if EARLY_STOP and rank == 0 and sum(_results) / len(_results) < min_val_loss:
+        min_val_loss = sum(_results) / len(_results)
+        torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
+        summary.write("saved\n")
 
       lr_scheduler.step()
 
@@ -455,13 +455,15 @@ def main_worker(rank, world_size, args):
       #     }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
   if rank == 0:
-    # torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
+    if not EARLY_STOP:
+      torch.save(model.state_dict(), f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle")
     mlp_training(args, model, summary)
 
 """# Quantitative evaluation"""
 
 def mlp_training(args, model, summary):
-  # model.load_state_dict(torch.load("./73768_epochs1_shuffledFalse_lr-pretrain0.075-0.075-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue.pickle"))
+  slurm_id = os.environ["SLURM_JOB_ID"]
+  model.load_state_dict(torch.load(f"{os.environ['SLURM_JOB_ID']}_{generate_trial_name()}.pickle"))
 
   EMB_SIZE = 128
   if REMOVE_MLP:
@@ -500,8 +502,8 @@ def mlp_training(args, model, summary):
       head_train_loader = extract_data(eval_loader)
       head_val_loader = extract_data(eval_val_loader)
 
-      classification_head = nn.Linear(EMB_SIZE, 9).cuda(args.gpu)
-      
+      classification_head = nn.Sequential(nn.Linear(EMB_SIZE, 1024), nn.Linear(1024, 512), nn.Linear(512, 9)).cuda(args.gpu)      
+ 
       if HEAD_OPTIMISER == "SGD":
           head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
       elif HEAD_OPTIMISER == "Adam":
@@ -513,6 +515,7 @@ def mlp_training(args, model, summary):
 
       ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
+      lowest_valid = float("inf")
       classification_head.train()
       for epoch in range(eval_epoch_num):
         with tqdm.tqdm(head_train_loader, unit="batch") as tepoch: 
@@ -538,6 +541,11 @@ def mlp_training(args, model, summary):
               classification_head.train()
 
               summary.write(f"classification loss: {eval_loader_name}: epoch {epoch}[{i}]{l.item()}, val avg loss: {acc_val_loss / len(eval_val_loader)}\n")
+              if acc_val_loss / len(eval_val_loader) < lowest_valid:
+                torch.save(classification_head, f"{slurm_id}_{generate_trial_name()}_head_{eval_loader_name}.pickle")
+                lowest_valid = acc_val_loss / len(eval_val_loader)
+
+      classification_head = torch.load(f"{slurm_id}_{generate_trial_name()}_head_{eval_loader_name}.pickle")
 
       classification_head.eval()
       acc_l = 0
@@ -558,12 +566,18 @@ def mlp_training(args, model, summary):
             confusion_matrix[label[i].item(), label_hat[i].argmax().item()] += 1
 
       acc_f1 = 0
+      acc_recall = 0
+      acc_precision = 0
       for i in range(confusion_matrix.shape[0]):
         recall = confusion_matrix[i, i] / confusion_matrix[i].sum()
         precision = confusion_matrix[i, i] / confusion_matrix[:, i].sum()
-        acc_f1 += 2 / (1 / precision + 1 / recall)
 
-      summary.write(f"test set loss: {acc_l / len(test_loader)}, macro F1: {acc_f1 / confusion_matrix.shape[0]}\n")
+        acc_f1 += 2 / (1 / precision + 1 / recall)
+        acc_recall += recall
+        acc_precision += precision
+
+      summary.write(f"test set loss: {acc_l / len(test_loader)}, F1: {acc_f1 / confusion_matrix.shape[0]}, precision: {acc_precision / confusion_matrix.shape[0]}, recall: {acc_recall / confusion_matrix.shape[0]}\n")
+
       summary.write("\n")
 
       slurm_id = os.environ["SLURM_JOB_ID"]
