@@ -36,6 +36,7 @@
 \newcommand{\reporttitle}{Contrastive Medical Image Classification}
 \newcommand{\reportauthor}{Shitong Xu}
 \newcommand{\supervisor}{Prof. Ben Glocker}
+\newcommand{\secondmarker}{Dr. Benjamin Hou}
 \newcommand{\reporttype}{Meng Individual Report}
 \newcommand{\degreetype}{Meng} 
 
@@ -65,6 +66,11 @@ Your abstract.
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section*{Acknowledgments}
 % Comment this out if not needed.
+First, I wish to thank Professor Ben Glocker, for guiding me toward the completion of the project. It has been an exciting and valuable experience to explore the state-of-the-art field of deep learning, which is the contrastive learning technique. I also wish to thank my second marker, Dr. Benjamin Hou, for providing valuable suggestions on the evaluation methods at the beginning of the project. \\
+
+Finally, I wish to thank my family and friends. In particular, I wish to thank my parents: Anyuan Xu and Wei Xu. It has been a difficult and rewarding 4-years studying period, and I wouldn't accomplish what I have achieved without their support throughout the process. 
+
+
 
 % \clearpage{\pagestyle{empty}\cleardoublepage}
 
@@ -87,15 +93,16 @@ Medical image analysis refers to the tasks that train models to perform diagnose
 
 Among the prior self-supervised learning methods, contrastive learning has been an effective self-supervised learning method to extract the sample embeddings for downstream tasks. Contrastive learning aims at training an encoder to encode related samples with similar embeddings. A manually defined rule, known as the pretext function, is used to select or generate related samples from the dataset and guide the encoder to encode similar embedding for the selected samples. \\
 
-A wide variety of pretext functions have been proposed before to perform image classification, image-text retrieval, and video recognition tasks. However, limited prior works in the medical image processing field have compared the contrastive learned model's performance with supervised learned models' from the embedding quality's perspective. Comparing embedding quality with supervised learned models helps identify causes for poorly extracted embeddings and encourages novel contrastive learning algorithms being proposed to address the corresponding problem. In addition, most prior works on medical image contrastive learning employed a similar swapped patch prediction pretext task, and lacked exploration on other pretext tasks proposed in the contrastive learning field. We address these two problems by performing detailed experiments and evaluation on embedding quality based on the MedMNIST dataset, and exploring novel attention-masking-based pretext tasks for contrastive learning algorithms. \\
+A wide variety of pretext functions have been proposed before to perform image classification, image-text retrieval, and video recognition tasks. However, limited prior works in the medical image processing field have compared the contrastive learned model's performance with supervised learned models' from the embedding quality's perspective. Comparing embedding quality with supervised learned models helps identify causes for poorly extracted embeddings and encourages novel contrastive learning algorithms being proposed to address the corresponding problem. In addition, most prior works on medical image contrastive learning employed a similar swapped patch prediction pretext task, and lacked exploration on other pretext tasks proposed in the contrastive learning field. We address these two problems by performing detailed experiments and evaluation on embedding quality based on the Pathology dataset in the MedMNIST-v2 dataset, and exploring novel GradCAM-based pretext functions for contrastive learning algorithms. \\
 
 
 % Different contrastive learning algorithm's embedding performance might differ significantly compared with the result from general visual tasks which works proposed contrastive learning based on, because the medical classification tasks require strong task specific knowledge. As a result, research is required on experimental performance of different existing contrastive learning algorithms on medical image la In addition, limited prior works have proposed investigating more pretext tasks for medical image processing tasks. In this work we propose investigating attention masking's effectiveness as a pretext task for contrastive learning algorithms. 
 
 In conclusion, our research focuses on the following aspects: 
 \begin{itemize}
-    \item We base on the supervised contrastive learning\cite{supervisedContrastLearning} and compare it with numerous other contrastive learned models' performance on embedding extraction.
-    \item We propose a novel attention masking based pretext task as guidance for contrastive learning, and provide a detailed comparison with other pretext tasks proposed in the prior works. 
+    \item We perform naive MOCO and supervised MOCO learning on the Pathology medical images, and compare the difference in embedding distribution with the model trained end-to-end on the same dataset. 
+    \item We identify the advantage of using contrastive learning on improving the recall score for the ... image category. 
+    \item We propose a novel GradCAM-based pretext function as guidance for contrastive learning, and provide a detailed comparison with other pretext tasks proposed in the prior works. 
 \end{itemize}
 
 % Medical images are significantly different from general real-world object images, so evaluations done by prior works based on non-medical images might not apply to the medical image embeddings. 
@@ -321,7 +328,7 @@ In the native MOCO pretraining experiments, 2 GPUs are used with a batch size of
 
 % In the following MOCO-based learning methods, unless otherwise specified, the hyperparameter tuning stage all last for 20 epochs, and scaled up experiments are all . 
 
-\subsection{GradCAM-based MOCO training}
+\subsection{GradCAM-based MOCO training} \label{sec:gradcamMOCO}
 As introduced in Sec \ref{sec:prior_attention_self-supervise}, attention masking has shown strong performance in various self-supervised learning contexts. In this project, we experimented on if masking the region where the model has high attention could be in a strong pretext function. Unlike the ViT model, the modified Resnet-50 model we base on uses a CNN encoder model, which does not calculate attention score in the forward pass. As a result, we instead extract the attention information using Grad-CAM. \\
 
 % The gradient map is used as the attention map to identify the region where the model showed the most attention.
@@ -331,7 +338,7 @@ As introduced in Sec \ref{sec:prior_attention_self-supervise}, attention masking
 % information selected the latend information 
 
 
-The GradCAM-based MOCO differs from the naive MOCO only from the pretext function used. The procedure of the new pretext function is shown in Figure\ref{fig:grad_perturb_explain}. Images A and B form a positive pair generated from the same sample image by data augmentation. In each mini-batch training step, a contrastive loss is first calculated between images A and B. Then GradCAM feature map is generated to locate the image region that has a ... influence on the contrastive loss. Finally, image B is divided into $n \times n$ patches. The patch where the largest GradCAM value locates is masked with zero values. The masked image forms a positive pair with the original unmasked image, and is used to calculate new contrastive loss. The query encoder model is optimized using the second contrastive loss. Same to the MOCO training, InfoNCE is used in both loss values' calculations. The code used for generating masked images is listed below. 
+The GradCAM-based MOCO differs from the naive MOCO only from the pretext function used. The procedure of the new pretext function is shown in Figure\ref{fig:grad_perturb_explain}. Images A and B form a positive pair generated from the same sample image by data augmentation. In each mini-batch training step, a contrastive loss is first calculated between images A and B. Then GradCAM feature map is generated to locate the image region that influences the contrastive loss. Finally, image B is divided into $n \times n$ patches. The patch where the largest GradCAM value locates is masked with zero values. The masked image forms a positive pair with the original unmasked image, and is used to calculate new contrastive loss. The query encoder model is optimized using the second contrastive loss. Same to the MOCO training, InfoNCE is used in both loss values' calculations. The code used for generating masked images is listed below. 
 
 \begin{figure}
   \centering
@@ -396,8 +403,10 @@ Using the above image masking function, the following code added to each mini-ba
     loss = criterion(output, target)
     loss.backward()
 
-    # generate GradCAM feature map that identifies the most 
-    # attended region with high values
+    if IMPLEMENTATION_2:
+        loss = -loss
+    # generate GradCAM feature map base on the above contrastive loss
+    # identifies the most attended region with high values
     gradcam = ...
 
     # construct masked image
@@ -411,11 +420,11 @@ Using the above image masking function, the following code added to each mini-ba
     model.train()
     
     # ... the rest of the training code ...
-\end{lstlisting}
+\end{lstlisting} \label{gradcam_code2}
 
-This perturbation method is expected to result in better performance than the model trained using the naive MOCO implementation. The region with a ... GradCAM value indicates that the region has a ... influence on the contrastive loss. Masking the region with zeros removes the context where the model base prediction on, Masking the image region with zeros ... removes the context provided to the model, forces the model to also attend to the features in other regions of the image, and thus improve the quality of embedding learned. \\
+Two different implementations are experimented on in this project. One implementation calculates the GradCAM with respect to the positive loss value, and the other calculates with respect to the negative contrastive loss, as shown in the code session \ref{gradcam_code2}. The first implementation will locate the region that positively influences the loss value. Decreasing the pixel values in the region will result in a decrease in the loss value. Masking the region with zero removes the region that the model has difficulty diagnosing. This might help the model exploit the knowledge it acquires from the other image regions. The second implementation locates and masks the region that negatively influences the contrastive loss. Masking the region will increase the contrastive loss, and removes the context that the model focused on when selecting the positive pair. This might force the model to base prediction on the other image regions. We experiment on both of these implementations in the following evaluation session. \\
 
-It takes 8 hours to train the model using Gradient based perturbation for 20 epochs on the pretraining dataset. The increased computation cost is caused by the additional inference and backpropagation step required to calculate the Grad-CAM feature maps for images in the mini-batch. 
+It takes 8 hours to train the model using GradCAM-based perturbation for 20 epochs on the pretraining dataset. The increase in computation cost is caused by the additional inference and backpropagation step required to calculate the Grad-CAM feature maps for images in the mini-batch. 
 
 \section{Supervised Learning}
 \subsection{End-to-end supervised learning} \label{sec:naive_supervised}
@@ -447,24 +456,9 @@ In order to achieve a fair comparison, the classification heads of naive MOCO an
 We first present the end-to-end supervised method's performance in Section \ref{sec:end2end}. Then we use the recorded performance from end-to-end supervised training as a baseline for comparison in the other 3 training methods in Section \ref{sec:naiveMOCO_eval}, \ref{sec:supervisedMOCO_eval}, and \ref{sec:gradientMOCO_eval}. 
 
 \section{End-to-end supervised method} \label{sec:end2end}
-In this section, we present the performance of the model trained end-to-end on the pretraining and dev-training datasets. The default hyperparameters used for training are shown in Table \ref{tab:supervised_hyperparameters}, and we tuned the constant learning rate used for both models trained on each dataset. \\
+In this section, we present the performance of the model trained end-to-end on the pretraining and dev-training datasets. The optimizer used is the Adam optimizer, and we tuned the constant learning rate used for both models trained on each dataset. \\
 
-\begin{table}[]
-    \centering
-    \begin{tabular}{ll}
-    \toprule
-    Hyperparameter & Value \\
-    \midrule
-    SGD momentum & 0.9 \\
-    SGD weight-decay & 1e-4 \\
-    Learning rate scheduling & constant learning rate \\
-    \bottomrule
-    \end{tabular}
-    \caption{Default hyperparameters used in end-to-end training}
-    \label{tab:supervised_hyperparameters}
-\end{table}
-
-We trained the modified Resnet-50 model end-to-end on the pretraining dataset. Table \ref{tab:large_supervised_tuning} shows the means training and validation loss of the models. The model trained with 0.1 learning rate early stopped at the 35th epoch, and achieved the lowest final validation loss. We repeated the experiment 4 times and report the optimal model performance in Table \ref{tab:naive_supervised_final}. In addition, the elementwise average of the confusion matrix, precision values, and recall values are shown in Figure \ref{fig:large_supervised_cm} and Table \ref{tab:large_supervised_preci_recall}. The CAS images category has a significantly lower recall score than the other classes, with around half of the CAS samples being misclassified as debris and smooth muscle images. The debris image category has the lowest precision score. Most images that are misclassified as debris images come from the CAS category. On the contrary, the mucus image category, which has the smallest sample size in the pretraining dataset, does not show either low precision or low recall values. In the following sessions, unless otherwise specified, all the confusion matrices and metric tables report the elementwise averages of the scores generated from repeated experiments.\\
+When training on the pretraining dataset, the mean training and validation loss values are shown in Table \ref{tab:large_supervised_tuning}. The model trained with 0.1 learning rate early stopped at the 35th epoch, and achieved the lowest final validation loss. We repeated the experiment 4 times and report the optimal model performance in Table \ref{tab:naive_supervised_final}. In addition, the elementwise average of the confusion matrix, precision values, and recall values are shown in Figure \ref{fig:large_supervised_cm} and Table \ref{tab:large_supervised_preci_recall}. The CAS images category has a significantly lower recall score than the other classes, with around half of the CAS samples being misclassified as debris and smooth muscle images. The debris image category has the lowest precision score. Most images that are misclassified as debris images come from the CAS category. On the contrary, neither of the mucus and NCM image categories, which have two of the smallest sample sizes in the pretraining dataset, show significantly low precision or low recall values. In the following sessions, unless otherwise specified, all the confusion matrices and metric tables report the elementwise averages of the scores generated from repeated experiments.\\
 
 % As shown in Table ..., both of these image classes have significantly smaller sample sizes in the test set than in the training and development set. 
 
@@ -550,7 +544,7 @@ In order to visualize the embedding learned by the model end-to-end trained on t
 
 Models trained end-to-end on the dev-training dataset with different learning rates are shown in Table \ref{tab:small_supervised_tuning}. Due to the smaller sample size, the model achieves lower scores than the model trained on the larger pretraining dataset as expected. We select 0.005 learning rate as our final hyperparameter configuration due to its smaller final validation loss. \\
 
-Based on the above observations on learning rates, we scaled up the learning to 320 epochs. However, as shown in Figure \ref{fig:small_training_curve}, the model trained on the dev-train dataset does not show further improvement in the validation loss value. As a result, we early stop training at 160 epochs and report the average performance of 3 experiments in Table \ref{tab:naive_supervised_final}. In addition, Figure \ref{fig:small_supervised_cm} and Table \ref{tab:small_supervised_preci_recall} show the confusion matrix, mean precision scores, and mean recall scores. Similar to the confusion matrix of the model trained end-to-end on the pretraining dataset, the CAS image category has the lowest recall score. More than half of the CAS images are misclassified as the smooth muscle images. The smooth muscle image category has the lowest precision score even though it has the second-largest sample size in the dev-training dataset. \\
+Based on the above observations on learning rates, we scaled up the learning to 320 epochs. However, as shown in Figure \ref{fig:small_training_curve}, the model trained on the dev-train dataset does not show further improvement in the validation loss value. As a result, we early stop training at 160 epochs and report the average performance of 4 experiments in Table \ref{tab:naive_supervised_final}. In addition, Figure \ref{fig:small_supervised_cm} and Table \ref{tab:small_supervised_preci_recall} show the confusion matrix, mean precision scores, and mean recall scores. Similar to the confusion matrix of the model trained end-to-end on the pretraining dataset, the CAS image category has the lowest recall score. More than half of the CAS images are misclassified as the smooth muscle and debris images. The CAS category also has the lowest precision score. The debris image class, which has the lowest precision score for the model trained end-to-end on the pretraining dataset, has the second-lowest score for the models trained on the dev-training set. The mucus and NCM classes still show high precision and recall values regardless of their small sample size in the dev-training set.\\
 
 \begin{table}[]
     \centering
@@ -606,7 +600,7 @@ Recall & $0.8184$ & $0.3179$ & $0.9252$ \\
     \label{tab:small_supervised_preci_recall}
 \end{table}
 
-We select one model trained using 0.01 learning rate that achieved 0.8361 F1 score for t-SNE and PCA embedding distribution visualization. In comparison to the embedding distribution learned by the model trained on the pretrain dataset, the model trained on the dev-training dataset is less capable of encoding cancer-associated stroma and colorectal adenocarcinoma epithelium cells with different embeddings. No significant difference is shown in PCA embedding visualization. \\
+We select one model trained using 0.005 learning rate that achieved 0.8361 F1 score for t-SNE and PCA embedding distribution visualization. In comparison to the embedding distribution learned by the model trained on the pretrain dataset, the model trained on the dev-training dataset is less capable of encoding CAS and CAE cells with different embeddings. No significant difference is shown in PCA embedding visualization. \\
 
 \begin{figure}
 \centering
@@ -708,10 +702,7 @@ In addition, we notice that a learning rate of 1.0 shows slightly better final v
     \label{fig:naiveMOCO_pretrain_curve_final}
 \end{figure}
 
-We repeated the 120 epochs' experiment 3 times and plot the mean and standard deviations of the loss values, as shown by the blue line and light blue region in Figure \ref{fig:naiveMOCO_pretrain_curve_final}. In addition, as shown in Table \ref{tab:MOCO_final_metric}, we report the mean metric performance achieved by the linear classification models trained on the features extracted by these pretrained encoders. Though the naive MOCO pretrained the encoder model on additional data, i.e. the pretraining dataset, the classification performance is only marginally better than the model trained end-to-end on the dev-training dataset.\\
-
-We further explore if the low complexity of the linear classification head limited the model performance. As shown in Table \ref{tab:MOCO_multimlp}, the model classification performance only improved slightly after adding a 1024 neuron layer, and worsen when different classification heads are used. We conclude that either the other hyperparameters untuned limited the model's performance, or the pretraining dataset is too small for the pretrained encoder to outperform the baseline model significantly. \\
-
+We repeated the 120 epochs' experiment 3 times and plot the mean and standard deviations of the loss values, as shown by the blue line and light blue region in Figure \ref{fig:naiveMOCO_pretrain_curve_final}. In addition, as shown in Table \ref{tab:MOCO_final_metric}, we report the mean metric performance achieved by the linear classification models trained on the features extracted by these pretrained encoders. Though the naive MOCO pretrained the encoder model on additional data, i.e. the pretraining dataset, the classification performance is only marginally better than the model trained end-to-end on the dev-training dataset. \\
 
 \begin{table}[]
     \centering
@@ -727,6 +718,9 @@ We further explore if the low complexity of the linear classification head limit
     \captionsetup{type=table}\captionof{table}{Comparison between naive MOCO classification performance and }
     \label{tab:MOCO_final_metric}
 \end{table}
+
+We further explore if the low complexity of the linear classification head limited the model's macro F1, precision, and recall performance. As shown in Table \ref{tab:MOCO_multimlp}, the model classification performance only improved slightly after adding a 1024 neuron layer, and worsen when different classification heads are used. We conclude that either the other hyperparameters untuned limited the model's performance, or the pretraining dataset is too small for the pretrained encoder to outperform the baseline model significantly. \\
+
 
 \begin{table}[]
     \centering
@@ -753,29 +747,12 @@ We further explore if the low complexity of the linear classification head limit
     \label{tab:MOCO_multimlp}
 \end{table}
 
-Finally, we present the embedding distribution and confusion matrix learned by naive MOCO learning. We select a model with 0.8379 F1 score trained using the above hyperparameters and epoch numbers. Figure\ref{fig:moco_embedding} shows the t-SNE and PCA embedding visualization. In comparison with the supervised trained models' t-SNE graph, naive MOCO learning also has difficulty distinguishing the cancer-associated stroma and colorectal adenocarcinoma epithelium cells. When PCA dimensionality reduction is used, the model shows significantly worse performance in encoding different classes of images with different embeddings. Apart from the adipose cells, all the rest image categories are encoded to an embedding region that significantly overlaps with at least one other image category's embedding region. \\
 
-The confusion matrix of the same model is shown in Figure \ref{fig:naiveMOCO_cm}, and the per-class precision and recall values are shown in Table \ref{tab:naiveMOCO_preci_recall}. In comparison with the model trained end-to-end on the dev-training set, naive MOCO improves the model performance by around 0.04 precision scores in 5 of the 9 classes and decreases the score by more than 0.1 in NCM and CAS categories. All categories' recall values decreased apart from the NCM and CAS classes, in which naive MOCO training improves the recall value by 0.0894 and 0.3619 respectively. 
-
-\begin{figure}
-\centering
-    \begin{subfigure}{.45\textwidth}
-      \centering
-      \includegraphics[width=1.0\linewidth]{figures/76227.png}
-      \caption{t-SNE embedding visualization}
-    \end{subfigure}%
-    \begin{subfigure}{.45\textwidth}
-      \centering
-      \includegraphics[width=1.0\linewidth]{figures/76227_pca.png}
-      \caption{PCA embedding visualization}
-    \end{subfigure}
-    \caption{Embedding visualizations of the model trained with naive MOCO learning}
-    \label{fig:moco_embedding}
-\end{figure}
+The average confusion matrices of the 3 models are shown in Figure \ref{fig:naiveMOCO_cm}, and the average per-class precision and recall values are shown in Table \ref{tab:naiveMOCO_preci_recall}. In comparison with the model trained end-to-end on the dev-training set, naive MOCO improves the model precision score by more than 0.035 in 3 of the 9 classes, but decreases the score by more than 0.05 in the other 3 categories. Apart from the NCM and CAS classes, all categories' recall values are lower than the supervised baseline. Notably, the CAS category shows both the largest increase in recall and the largest decrease in precision score. Instead of wrongly classifying CAS images as smooth muscle images, the naive MOCO trained model tends to classify smooth muscle images as CAS images. Similar to the supervised baseline, the naive MOCO trained model is also capable of classifying NCM and mucus images with high precision and recall. \\ 
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/76305_cm.png}
+    \includegraphics[width=0.8\linewidth]{figures/naiveMOCO_cm.png}
     \caption{Confusion Matrix of the model trained with naive MOCO learning}
     \label{fig:naiveMOCO_cm}
 \end{figure}
@@ -803,6 +780,24 @@ Recall & $0.8862$ ($+0.0678$) & $0.6238$ ($+0.3060$) & $0.8992$ ($-0.0260$) \\
     \captionsetup{type=table}\captionof{table}{Per-class precision and recall values of the model trained using naive MOCO learning. The values in the brackets show the difference in metric scores from the model trained end-to-end on the dev-training dataset. }
     \label{tab:naiveMOCO_preci_recall}
 \end{table}
+
+Finally, we present the embedding distribution and confusion matrix learned by naive MOCO learning. We select a model with 0.8379 F1 score trained using the above hyperparameters and epoch numbers. Figure\ref{fig:moco_embedding} shows the t-SNE and PCA embedding visualization. In comparison with the supervised trained models' t-SNE graph, naive MOCO learning also has difficulty distinguishing the CAS and CAE cells. When PCA dimensionality reduction is used, the model shows significantly worse performance in encoding different classes of images with different embeddings. Apart from the adipose cells, all the rest image categories are encoded to an embedding region that significantly overlaps with at least one other image category's embedding region. \\
+
+\begin{figure}
+\centering
+    \begin{subfigure}{.45\textwidth}
+      \centering
+      \includegraphics[width=1.0\linewidth]{figures/76227.png}
+      \caption{t-SNE embedding visualization}
+    \end{subfigure}%
+    \begin{subfigure}{.45\textwidth}
+      \centering
+      \includegraphics[width=1.0\linewidth]{figures/76227_pca.png}
+      \caption{PCA embedding visualization}
+    \end{subfigure}
+    \caption{Embedding visualizations of the model trained with naive MOCO learning}
+    \label{fig:moco_embedding}
+\end{figure}
 
 
 
@@ -862,7 +857,7 @@ In addition to the learning rate, we experimented with using an SGD optimizer. A
     \label{tab:supervised_moco_optimizer}
 \end{minipage}
 
-Based on the hyperparameters selected as above, we scaled up training to 2 learning rate annealing stages, which consist of 40 epochs in total. Note that in the second stage, we continue training on the model trained for the full 20 epochs in the first stage, instead of the model early stopped at the 19th epoch. Figure \ref{fig:supervisedMOCO_pretraining_final_curve} shows the training curves of the supervised MOCO. As shown by the blue line, the model achieved further improvement in the second cosine annealing stage. In addition, as shown in Table \ref{tab:supervisedMOCO_multistage} and the orange line in Figure \ref{fig:supervisedMOCO_pretraining_final_curve}, training supervisedMOCO for more than 2 stages results in a decrease in the final validation loss. As a result, we report the final performance based on the 2 stages' training. The metrics scores achieved by 3 repeated experiments are shown in Table \ref{tab:supervisedMOCO_final}. In comparison with the metric scores achieved by end-to-end training, no significant difference is shown in the F1, Recall scores, and test set losses. The end-to-end trained model achieved a slightly higher Precision score ($0.8943$ compared to $0.8870$). \\
+Based on the hyperparameters selected as above, we scaled up training to 2 learning rate annealing stages, which consist of 40 epochs in total. Note that in the second stage, we continue training on the model trained for the full 20 epochs in the first stage, instead of the model early stopped at the 19th epoch. Figure \ref{fig:supervisedMOCO_pretraining_final_curve} shows the training curves of the supervised MOCO. As shown by the blue line, the model achieved further improvement in the second cosine annealing stage. In addition, as shown in Table \ref{tab:supervisedMOCO_multistage} and the orange line in Figure \ref{fig:supervisedMOCO_pretraining_final_curve}, training supervisedMOCO for more than 2 stages results in an insignificant decrease in the pretraining validation loss, while worsening the classification F1 score. As a result, we report the final performance based on the 2 stages' training. The metrics scores achieved by 3 repeated experiments are shown in Table \ref{tab:supervisedMOCO_final}. In comparison with the metric scores achieved by end-to-end training, no significant difference is shown in the F1, Recall scores, and test set losses. The end-to-end trained model achieved a slightly higher Precision score ($0.8943$ compared to $0.8864$). \\
 
 \begin{figure}
     \centering
@@ -878,7 +873,7 @@ Based on the hyperparameters selected as above, we scaled up training to 2 learn
     LR annealing stage number & F1 score \\
     \midrule
     1 & 0.8367 \\
-    2 & 0.8806 \\
+    2 & 0.8806 ... make consistent\\
     3 & 0.8742 \\
     \bottomrule
     \end{tabular}
@@ -903,9 +898,41 @@ Based on the hyperparameters selected as above, we scaled up training to 2 learn
     \label{tab:supervisedMOCO_final}
 \end{table}
 
-Qualitatively, we compare the embedding distribution learned by supervised MOCO training with end-to-end supervised learning. Figure \ref{fig:supervisedMOCO_embedding} shows the t-SNE and PCA visualization of the embedding distribution learned by the supervised MOCO learning. In general, the distribution differs significantly from that learned by end-to-end training(Figure\ref{fig:large_supervised_embedding}). The t-SNE visualization shows that the model encodes samples belonging to different classes with more clear boundaries. The PCA visualization shows that the supervised MOCO encodes samples from the same category with feature vectors in the same direction, and encodes samples from different categories with vectors orthogonal to each other. The phenomenon shown in the PCA visualization is expected, since the loss function is defined to train the model to encode samples belonging to the same class with a normalized dot product value of 1 and samples from different classes with a normalized dot product value of 0. \\
+In addition, we report the 3 models' confusion matrix and per-class metric scores in Figure \ref{fig:supervisedMOCO_cm} and Table \ref{tab:supervisedMOCO_preci_recall}. In contrast to the naive MOCO training, supervised moco training results in insignificant differences in the per-class precision and recall values. 7 out of 9 classes have precision scores within the $\pm 0.035$ range of the supervised baseline. The smooth muscle category is the only category with recall value lower by more than 0.05 than the supervised baseline. Similar to the naive MOCO training, the CAS category has the most significant decrease in the precision score ($-0.0356$) and increase in the recall score ($+0.1048$).\\
 
-In addition, we report the same model's confusion matrix and per-class metric scores in Figure \ref{fig:supervisedMOCO_cm} and Table \ref{tab:supervisedMOCO_preci_recall}. ...
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/supervisedMOCO_cm.png}
+    \caption{Confusion Matrix of the model trained using supervised MOCO learning}
+    \label{fig:supervisedMOCO_cm}
+\end{figure}
+
+\begin{table}[]
+    \centering
+    \begin{tabular}{llll}
+\toprule
+ & adipose & background & debris \\
+\hline
+Precision & $0.9651$ ($-0.0160$) & $0.9713$ ($+0.0032$) & $0.6886$ ($-0.0315$) \\
+Recall & $0.9708$ ($-0.0142$) & $1.0000$ ($+0.0000$) & $0.8938$ ($-0.0103$) \\
+\toprule
+ & lymphocytes & mucus & smooth muscle \\
+\hline
+Precision & $0.9130$ ($-0.0315$) & $0.9714$ ($-0.0198$) & $0.8328$ ($+0.0422$) \\
+Recall & $0.9937$ ($+0.0142$) & $0.9225$ ($-0.0087$) & $0.8511$ ($-0.0575$) \\
+\toprule
+ & NCM & CAS & CAE \\
+\hline
+Precision & $0.9300$ ($+0.0028$) & $0.7627$ ($-0.0356$) & $0.9428$ ($+0.0153$) \\
+Recall & $0.8997$ ($-0.0203$) & $0.5738$ ($+0.1048$) & $0.9252$ ($-0.0045$) \\
+    \bottomrule
+    \end{tabular}
+    \caption{Per-class precision and recall values of the model trained using supervised MOCO learning}
+    \label{tab:supervisedMOCO_preci_recall}
+\end{table}
+
+
+Qualitatively, we compare the embedding distribution learned by supervised MOCO training with end-to-end supervised learning. Figure \ref{fig:supervisedMOCO_embedding} shows the t-SNE and PCA visualization of the embedding distribution learned by the supervised MOCO learning. In general, the distribution differs significantly from that learned by end-to-end training(Figure\ref{fig:large_supervised_embedding}). The t-SNE visualization shows that the model encodes samples belonging to different classes with more clear boundaries. The PCA visualization shows that the supervised MOCO encodes samples from the same category with feature vectors in the same direction, and encodes samples from different categories with vectors orthogonal to each other. The phenomenon shown in the PCA visualization is expected, since the loss function is defined to train the model to encode samples belonging to the same class with a normalized dot product value of 1 and samples from different classes with a normalized dot product value of 0. \\
 
 \begin{figure}
 \centering
@@ -925,40 +952,22 @@ In addition, we report the same model's confusion matrix and per-class metric sc
     \label{fig:supervisedMOCO_embedding}
 \end{figure}
 
+\section{Gradient-based perturbation MOCO} \label{sec:gradientMOCO_eval}
+As explained in Section \ref{sec:gradcamMOCO}, we experiment on both GradCAM-based MOCO implementation and compare the training curves with the naive MOCO learning. We then repeat experiments on the more optimal implementation and compare the performance with both the supervised baseline and the naive MOCO implementation.\\ 
+
+Figure \ref{fig:gradcam1_curve} shows the learning curves of implementation 1, which masks the region that positively affects the contrastive loss. Note that the validation contrastive loss is calculated using the same method as the naive MOCO training, i.e. the contrastive loss between the positive pair generated by image augmentation instead of the GradCam-based perturbation. In the first 40 epochs, the GradCAM-based MOCO validation losses decrease significantly faster and achieve lower values than the naive MOCO training. Among the learning rates in $\{0.005, 0.01, 0.05, 0.1\}$, 0.01 and 0.05 learning rates achieve the lowest validation losses. However, in the next 40 epochs, the differences between validation losses become smaller, before the naive MOCO's validation loss decreases to a lower value than that of the GradCAM-based MOCO training. To verify if the large learning values result in the suboptimal final validation loss, we further experiment with using a smaller learning rate in the last 20 epochs based on the model trained for 60 epochs with a 0.01 learning rate. As shown by the green line in Figure \ref{fig:gradcam1_curve}, using a 0.005 learning rate results in a slower model convergence speed, and a higher validation loss at the end of the training. \\
+
 \begin{figure}
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/75767_cm.png}
-    \caption{Confusion Matrix of the model trained using supervised MOCO learning}
-    \label{fig:supervisedMOCO_cm}
+    \includegraphics[width=0.8\linewidth]{figures/gradcam1_curve.png}
+    \caption{Learning curves of GradCAM based MOCO training. In these experiments, the image regions that positively affect the contrastive loss are masked to generate positive pair images. }
+    \label{fig:gradcam1_curve}
 \end{figure}
 
-\begin{table}[]
-    \centering
-    \begin{tabular}{llll}
-\toprule
- & adipose & background & debris \\
-\hline
-Precision & $0.9651$ ($-0.0160$) & $0.9713$ ($+0.0032$) & $0.6886$ ($-0.0315$) \\
-Recall & $0.9708$ ($-0.0142$) & $1.0000$ ($0.0000$) & $0.8938$ ($-0.0103$) \\
-\toprule
- & lymphocytes & mucus & smooth muscle \\
-\hline
-Precision & $0.9130$ ($-0.0315$) & $0.9714$ ($-0.0198$) & $0.8328$ ($+0.0422$) \\
-Recall & $0.9937$ ($+0.0142$) & $0.9225$ ($-0.0087$) & $0.8511$ ($-0.0575$) \\
-\toprule
- & NCM & CAS & CAE \\
-\hline
-Precision & $0.9300$ ($+0.0028$) & $0.7627$ ($-0.0356$) & $0.9428$ ($+0.0153$) \\
-Recall & $0.8997$ ($-0.0203$) & $0.5738$ ($+0.1048$) & $0.9252$ ($-0.0045$) \\
-    \bottomrule
-    \end{tabular}
-    \caption{Per-class precision and recall values of the model trained using supervised MOCO learning}
-    \label{tab:supervisedMOCO_preci_recall}
-\end{table}
+In addition, we experiment with if the naive MOCO training could benefit from the low validation loss achieved by the GradCAM-based MOCO training. As shown by the red line in Figure \ref{fig:gradcam1_curve}, when performing naive MOCO training for 20 more epochs using the optimum hyperparameters found in Section \ref{sec:naiveMOCO_eval}, the model fails to show further improvement, and converges to validation loss higher than the value achieved by the naive MOCO training. As a result, we conclude that masking the image regions that positively affect the contrastive loss is not a suitable pretext function in this task. The pretext function is neither capable of helping the model converge to a more optimum result, nor helping the model converge to a comparable result with less epoch number. \\
 
+The learning curves of implementation 2 are shown in Figure .... 
 
-\section{Gradient-based perturbation MOCO} \label{sec:gradientMOCO_eval}
-In order to achieve a fair comparison, we 
 
 \chapter{Conclusion and further work}
 
