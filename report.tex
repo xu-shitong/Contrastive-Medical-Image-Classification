@@ -100,7 +100,7 @@ A wide variety of pretext functions have been proposed before to perform image c
 
 In conclusion, our research focuses on the following aspects: 
 \begin{itemize}
-    \item We perform naive MOCO and supervised MOCO learning on the Pathology medical images, and compare the difference in embedding distribution with the model trained end-to-end on the same dataset. 
+    \item We perform standard MOCO and supervised MOCO learning on the Pathology medical images, and compare the difference in embedding distribution with the model trained end-to-end on the same dataset. 
     \item We identify the advantage of using contrastive learning on improving the recall score for the ... image category. 
     \item We propose a novel GradCAM-based pretext function as guidance for contrastive learning, and provide a detailed comparison with other pretext tasks proposed in the prior works. 
 \end{itemize}
@@ -266,7 +266,7 @@ The Pathology dataset from the MedMNIST benchmark provides a split for training,
     \centering
     \begin{tabular}{|p{2.5cm}|p{2.6cm}|p{2.5cm}|p{2.1cm}|p{2.3cm}|}
     \toprule
-    dataset & naive MOCO \& gradient-based MOCO training & supervised MOCO training & training set end-to-end training & development set end-to-end training\\
+    dataset & standard MOCO \& gradient-based MOCO training & supervised MOCO training & training set end-to-end training & development set end-to-end training\\
     \hline
     pretrain set   & encoder        & encoder \&     & training   & not used \\
                    & pretraining    & classification &            &          \\
@@ -319,7 +319,7 @@ The prior work from Ciga et al. \cite{sslhistopathology} explored the effectiven
 % Figure... shows the output image after each augmentation step
 
 \section{Contrastive Pretraining}
-\subsection{Naive MOCO training} \label{sec:naiveMOCO}
+\subsection{Standard MOCO training} \label{sec:naiveMOCO}
 We performed MOCO-v2 \cite{mocov2} learning on the pretraining dataset. In addition to the basis of MOCO training explained in \section{MOCO_relatedwork}, we add more engineering details of the training in this section. \\
 
 Only the query encoder is updated by the gradient backpropagation step. The key encoder parameters are not optimized in the backpropagation, but are momentum updated in each training step. Each key encoder parameter ... is updated using the following formula: ... , where ... is the corresponding parameter in the query encoder. After pretraining, the query, instead of the key encoder, is used to extract image embeddings for the classification head training. 
@@ -328,7 +328,7 @@ The InfoNCE loss is quite similar to the categorical classification loss. In bot
 
 We selected MOCO based on the following considerations: Contrastive learning's effectiveness relies on the large mini-batch size, which allows the model to compare the embedding extracted for each sample to a large number of other sample images. This helps the model learn from the difference between positive and negative sample pairs, thus improving model generalizability. However, the available GPUs for the project have small memory sizes that limit the batch size to below 128 images. Other contrastive learning methods, e.g. SimCLR, used a mini-batch size of 8192, which is significantly larger than the maximum batch size allowed by the project. In contrast, MOCO stores a list of history embeddings extracted from the previous mini-batches. This removes the requirement of having a large batch size, and thus is expected to achieve better performance than the other contrastive learning methods under the same hardware limitation.\\
 
-The model used in pretraining is a Resnet-50 model. Following the work proposed by Chen et al. \cite{mocov2} and evaluation performed by Bordes et al. \cite{guillotine} and Balestriero et al. \cite{cookbook}, we removed the MLP layers after the convolution layers once pretraining is finished and used the max-pooled output of conv layers as the learned embeddings. The trained backbone model then extracts embeddings for the whole dev dataset. The extracted dev-training dataset embeddings are constructed as a new dataset and used to train the classification head. The linear layer projects the 2048 dimension feature extracted by the previous Conv layers to 9 dimension space corresponding to the number of image classes contained in the Pathology dataset. In order to achieve a fair comparison, unless otherwise specified, all the MOCO-based training methods explored in this project use the same model architecture as explained above. We refer to the model as the modified Resnet-50 model. Apart from the loss function and pretext function used, all the MOCO-based training methods also use the same training procedure as the naive MOCO training.\\
+The model used in pretraining is a Resnet-50 model. Following the work proposed by Chen et al. \cite{mocov2} and evaluation performed by Bordes et al. \cite{guillotine} and Balestriero et al. \cite{cookbook}, we removed the MLP layers after the convolution layers once pretraining is finished and used the max-pooled output of conv layers as the learned embeddings. The trained backbone model then extracts embeddings for the whole dev dataset. The extracted dev-training dataset embeddings are constructed as a new dataset and used to train the classification head. The linear layer projects the 2048 dimension feature extracted by the previous Conv layers to 9 dimension space corresponding to the number of image classes contained in the Pathology dataset. In order to achieve a fair comparison, unless otherwise specified, all the MOCO-based training methods explored in this project use the same model architecture as explained above. We refer to the model as the modified Resnet-50 model. Apart from the loss function and pretext function used, all the MOCO-based training methods also use the same training procedure as the standard MOCO training.\\
 
 In the native MOCO pretraining experiments, 2 GPUs are used with a batch size of 112 on each GPU. In the pretraining stage, it takes around 5 hours to pretrain the backbone model for 20 epochs. In the final reported results, we scaled up the training time to 120 epochs and repeat experiments for 3 times. The scaled-up experiments take 30 hours to train on 2 Tesla T4 GPUs. 
 
@@ -344,7 +344,7 @@ As introduced in Sec \ref{sec:prior_attention_self-supervise}, attention masking
 % information selected the latend information 
 
 
-The GradCAM-based MOCO differs from the naive MOCO only from the pretext function used. The procedure of the new pretext function is shown in Figure\ref{fig:grad_perturb_explain}. Images A and B form a positive pair generated from the same sample image by data augmentation. In each mini-batch training step, a contrastive loss is first calculated between images A and B. Then GradCAM feature map is generated to locate the image region that influences the contrastive loss. Finally, image B is divided into $n \times n$ patches. The patch where the largest GradCAM value locates is masked with zero values. The masked image forms a positive pair with the original unmasked image, and is used to calculate new contrastive loss. The query encoder model is optimized using the second contrastive loss. Same to the MOCO training, InfoNCE is used in both loss values' calculations. The code used for generating masked images is listed below. 
+The GradCAM-based MOCO differs from the standard MOCO only from the pretext function used. The procedure of the new pretext function is shown in Figure\ref{fig:grad_perturb_explain}. Images A and B form a positive pair generated from the same sample image by data augmentation. In each mini-batch training step, a contrastive loss is first calculated between images A and B. Then GradCAM feature map is generated to locate the image region that influences the contrastive loss. Finally, image B is divided into $n \times n$ patches. The patch where the largest GradCAM value locates is masked with zero values. The masked image forms a positive pair with the original unmasked image, and is used to calculate new contrastive loss. The query encoder model is optimized using the second contrastive loss. Same to the MOCO training, InfoNCE is used in both loss values' calculations. The code used for generating masked images is listed below. 
 
 \begin{figure}
   \centering
@@ -452,12 +452,12 @@ $$L = \sum_{x_i^q \in B, x_j^k \in S, C_{x_i^q} = C_{x_j^k}}\log(\frac{\exp(x_i^
     \label{fig:supervisedMOCO_loss_explain}
 \end{figure}
 
-The training is performed on 2 GPUs. The training hardware used and time cost is the same as the model trained using naive MOCO training explained in Sec \ref{sec:naiveMOCO}. 
+The training is performed on 2 GPUs. The training hardware used and time cost is the same as the model trained using standard MOCO training explained in Sec \ref{sec:naiveMOCO}. 
 
 \chapter{Evaluation}
 In this section, we detail the hyperparameter tuning experiments and the evaluations of the embedding qualities learned by each training method. In particular, the F1, precision, recall scores, and classification loss values are calculated for qualitative evaluation. t-SNE and PCA are used to visualize the distribution of embedding learned. \\
 
-In order to achieve a fair comparison, the classification heads of naive MOCO and Gradient-based perturbation MOCO are both trained using the Adam optimizer for 160 epochs on dev-training dataset with a learning rate of 0.01. The supervised MOCO trains the classification head using the Adam optimizer for 40 epochs on the pretraining dataset. All of the classification heads' training take less than 15 minutes to complete on a single Tesla T4 GPU. \\
+In order to achieve a fair comparison, the classification heads of standard MOCO and Gradient-based perturbation MOCO are both trained using the Adam optimizer for 160 epochs on dev-training dataset with a learning rate of 0.01. The supervised MOCO trains the classification head using the Adam optimizer for 40 epochs on the pretraining dataset. All of the classification heads' training take less than 15 minutes to complete on a single Tesla T4 GPU. \\
 
 We first present the end-to-end supervised method's performance in Section \ref{sec:end2end}. Then we use the recorded performance from end-to-end supervised training as a baseline for comparison in the other 3 training methods in Section \ref{sec:naiveMOCO_eval}, \ref{sec:supervisedMOCO_eval}, and \ref{sec:gradientMOCO_eval}. 
 
@@ -645,14 +645,14 @@ We select one model trained using 0.005 learning rate that achieved 0.8361 F1 sc
 
 
 % On visualizing samples of both categories of images, both categories of images do show strong similarity. 
-In the following supervised experiments, we compare the performance of supervised MOCO (Section \ref{sec:supervisedMOCO_eval}) with the model trained by end-to-end supervised method on the pretraining dataset, and compare the performance of naive MOCO (Section \ref{sec:naiveMOCO_eval}) and gradient-based perturbation MOCO (Section \ref{sec:gradientMOCO_eval}) with the model trained on the dev-training dataset. 
+In the following supervised experiments, we compare the performance of supervised MOCO (Section \ref{sec:supervisedMOCO_eval}) with the model trained by end-to-end supervised method on the pretraining dataset, and compare the performance of standard MOCO (Section \ref{sec:naiveMOCO_eval}) and gradient-based perturbation MOCO (Section \ref{sec:gradientMOCO_eval}) with the model trained on the dev-training dataset. 
 
 % This section reports the hyperparameter tuning result of the model trained on the pretraining dataset. We experimented with learning rates in range .... As shown in Fig. ..., the learning rate of ... showed the best performance. 
 
 % As a result, the learning rate of ... is selected to run for more epochs. The learning curve of .. epochs experiments is shown in Fig. ... 
 
 \section{Naive MOCO training} \label{sec:naiveMOCO_eval}
-Table \ref{tab:naive_moco_hyperparameters} shows the default hyperparameters proposed in MOCO-v2 \cite{mocov2}. Based on these hyperparameters, we tuned the learning rate for naive MOCO training. In particular, we applied cosine learning rate annealing, which consists of several learning rate decaying stages. In each stage, the learning rate is set to an initial high value at the beginning of the stage, and then gradually decreased to a low value. All annealing stages share the same initial learning rate, which is tuned in the following experiments. The black line in Figure \ref{fig:naiveMOCO_pretrain_curve} and the gray line in Figure \ref{fig:naiveMOCO_pretrain_curve_final} show the learning rate used in each epoch when an initial learning rate of 0.1 is used. \\
+Table \ref{tab:naive_moco_hyperparameters} shows the default hyperparameters proposed in MOCO-v2 \cite{mocov2}. Based on these hyperparameters, we tuned the learning rate for standard MOCO training. In particular, we applied cosine learning rate annealing, which consists of several learning rate decaying stages. In each stage, the learning rate is set to an initial high value at the beginning of the stage, and then gradually decreased to a low value. All annealing stages share the same initial learning rate, which is tuned in the following experiments. The black line in Figure \ref{fig:naiveMOCO_pretrain_curve} and the gray line in Figure \ref{fig:naiveMOCO_pretrain_curve_final} show the learning rate used in each epoch when an initial learning rate of 0.1 is used. \\
 % Cosine learning rate scheduling helps prevent the trained model from converging to the local optimum. 
 
 \begin{table}[]
@@ -673,7 +673,7 @@ Table \ref{tab:naive_moco_hyperparameters} shows the default hyperparameters pro
     \label{tab:naive_moco_hyperparameters}
 \end{table}
 
-Figure \ref{fig:naiveMOCO_pretrain_curve} shows the contrastive loss values of naive MOCO pretrained for 20 epochs. Model trained using a learning rate of 5.0 results in unstable training, and failed to converge to an optimum solution. When setting the learning rate to a small value, e.g. 0.005, the model converges at a significantly lower speed, as shown by the blue line in the figure. Setting learning rates in $\{0.05, 0.1, 0.5\}$ results in insignificant differences in the training and validation loss curves, as shown by the standard deviation (the light orange region) around the mean loss values (the orange curve). As a result, we select the median value 0.1 among $\{0.05, 0.1, 0.5\}$ as the learning rate used in further experiments. The training and validation loss curves of 0.1 learning rate are shown as the green lines in Figure \ref{fig:naiveMOCO_pretrain_curve}. \\
+Figure \ref{fig:naiveMOCO_pretrain_curve} shows the contrastive loss values of standard MOCO pretrained for 20 epochs. Model trained using a learning rate of 5.0 results in unstable training, and failed to converge to an optimum solution. When setting the learning rate to a small value, e.g. 0.005, the model converges at a significantly lower speed, as shown by the blue line in the figure. Setting learning rates in $\{0.05, 0.1, 0.5\}$ results in insignificant differences in the training and validation loss curves, as shown by the standard deviation (the light orange region) around the mean loss values (the orange curve). As a result, we select the median value 0.1 among $\{0.05, 0.1, 0.5\}$ as the learning rate used in further experiments. The training and validation loss curves of 0.1 learning rate are shown as the green lines in Figure \ref{fig:naiveMOCO_pretrain_curve}. \\
 
 \begin{table}[]
     \centering
@@ -688,14 +688,14 @@ Figure \ref{fig:naiveMOCO_pretrain_curve} shows the contrastive loss values of n
     $5.0$ & $7.8421$ & $7.7641$ \\
     \bottomrule
     \end{tabular}
-    \captionsetup{type=table}\captionof{table}{Learning rate hyperparameter tuning results for naive MOCO training}
+    \captionsetup{type=table}\captionof{table}{Learning rate hyperparameter tuning results for standard MOCO training}
     \label{tab:naive_moco_tuning}
 \end{table}
 
 \begin{figure}
     \centering
     \includegraphics[width=.9\linewidth]{figures/moco_pretrain_curve.png}
-    \caption{Learning rate hyperparameter tuning for naive MOCO training}
+    \caption{Learning rate hyperparameter tuning for standard MOCO training}
     \label{fig:naiveMOCO_pretrain_curve}
 \end{figure}
 
@@ -704,11 +704,11 @@ In addition, we notice that a learning rate of 1.0 shows slightly better final v
 \begin{figure}
     \centering
     \includegraphics[width=.9\linewidth]{figures/moco_pretrain_curve_final.png}
-    \caption{Scaled-up experiments on naive MOCO training}
+    \caption{Scaled-up experiments on standard MOCO training}
     \label{fig:naiveMOCO_pretrain_curve_final}
 \end{figure}
 
-We repeated the 120 epochs' experiment 3 times and plot the mean and standard deviations of the loss values, as shown by the blue line and light blue region in Figure \ref{fig:naiveMOCO_pretrain_curve_final}. In addition, as shown in Table \ref{tab:MOCO_final_metric}, we report the mean metric performance achieved by the linear classification models trained on the features extracted by these pretrained encoders. Though the naive MOCO pretrained the encoder model on additional data, i.e. the pretraining dataset, the classification performance is only marginally better than the model trained end-to-end on the dev-training dataset. \\
+We repeated the 120 epochs' experiment 3 times and plot the mean and standard deviations of the loss values, as shown by the blue line and light blue region in Figure \ref{fig:naiveMOCO_pretrain_curve_final}. In addition, as shown in Table \ref{tab:MOCO_final_metric}, we report the mean metric performance achieved by the linear classification models trained on the features extracted by these pretrained encoders. Though the standard MOCO pretrained the encoder model on additional data, i.e. the pretraining dataset, the classification performance is only marginally better than the model trained end-to-end on the dev-training dataset. \\
 
 \begin{table}[]
     \centering
@@ -718,10 +718,10 @@ We repeated the 120 epochs' experiment 3 times and plot the mean and standard de
     \midrule
     end-to-end & $0.8369 \pm 0.0011$ & $0.8507 \pm 0.0098$ & $0.8460 \pm 0.0040$ & $0.3379 \pm 0.0510$ \\
     \midrule
-    naive MOCO & $0.8380 \pm 0.0007$ & $0.8377 \pm 0.0024$ & $0.8419 \pm 0.0053$ & $0.3781 \pm 0.0226$\\
+    standard MOCO & $0.8380 \pm 0.0007$ & $0.8377 \pm 0.0024$ & $0.8419 \pm 0.0053$ & $0.3781 \pm 0.0226$\\
     \bottomrule
     \end{tabular}
-    \captionsetup{type=table}\captionof{table}{Comparison between naive MOCO classification performance and }
+    \captionsetup{type=table}\captionof{table}{Comparison between standard MOCO classification performance and }
     \label{tab:MOCO_final_metric}
 \end{table}
 
@@ -749,17 +749,17 @@ We further explore if the low complexity of the linear classification head limit
     layer 3: $1024 \to 9$ \\
     \bottomrule
     \end{tabular}
-    \captionsetup{type=table}\captionof{table}{Classification performance of naive MOCO trained encoder with different classification head complexity}
+    \captionsetup{type=table}\captionof{table}{Classification performance of standard MOCO trained encoder with different classification head complexity}
     \label{tab:MOCO_multimlp}
 \end{table}
 
 
-The average confusion matrices of the 3 models are shown in Figure \ref{fig:naiveMOCO_cm}, and the average per-class precision and recall values are shown in Table \ref{tab:naiveMOCO_preci_recall}. In comparison with the model trained end-to-end on the dev-training set, naive MOCO improves the model precision score by more than 0.035 in 3 of the 9 classes, but decreases the score by more than 0.05 in the other 3 categories. Apart from the NCM and CAS classes, all categories' recall values are lower than the supervised baseline. Notably, the CAS category shows both the largest increase in recall and the largest decrease in precision score. Instead of wrongly classifying CAS images as smooth muscle images, the naive MOCO trained model tends to classify smooth muscle images as CAS images. Similar to the supervised baseline, the naive MOCO trained model is also capable of classifying NCM and mucus images with high precision and recall. \\ 
+The average confusion matrices of the 3 models are shown in Figure \ref{fig:naiveMOCO_cm}, and the average per-class precision and recall values are shown in Table \ref{tab:naiveMOCO_preci_recall}. In comparison with the model trained end-to-end on the dev-training set, standard MOCO improves the model precision score by more than 0.035 in 3 of the 9 classes, but decreases the score by more than 0.05 in the other 3 categories. Apart from the NCM and CAS classes, all categories' recall values are lower than the supervised baseline. Notably, the CAS category shows both the largest increase in recall and the largest decrease in precision score. Instead of wrongly classifying CAS images as smooth muscle images, the standard MOCO trained model tends to classify smooth muscle images as CAS images. Similar to the supervised baseline, the standard MOCO trained model is also capable of classifying NCM and mucus images with high precision and recall. \\ 
 
 \begin{figure}
     \centering
     \includegraphics[width=0.8\linewidth]{figures/naiveMOCO_cm.png}
-    \caption{Confusion Matrix of the model trained with naive MOCO learning}
+    \caption{Confusion Matrix of the model trained with standard MOCO learning}
     \label{fig:naiveMOCO_cm}
 \end{figure}
 
@@ -783,11 +783,11 @@ Precision & $0.8697$ ($-0.0803$) & $0.4897$ ($-0.1395$) & $0.8977$ ($+0.0410$) \
 Recall & $0.8862$ ($+0.0678$) & $0.6238$ ($+0.3060$) & $0.8992$ ($-0.0260$) \\
     \bottomrule
     \end{tabular}
-    \captionsetup{type=table}\captionof{table}{Per-class precision and recall values of the model trained using naive MOCO learning. The values in the brackets show the difference in metric scores from the model trained end-to-end on the dev-training dataset. }
+    \captionsetup{type=table}\captionof{table}{Per-class precision and recall values of the model trained using standard MOCO learning. The values in the brackets show the difference in metric scores from the model trained end-to-end on the dev-training dataset. }
     \label{tab:naiveMOCO_preci_recall}
 \end{table}
 
-Finally, we present the embedding distribution and confusion matrix learned by naive MOCO learning. We select a model with 0.8379 F1 score trained using the above hyperparameters and epoch numbers. Figure\ref{fig:moco_embedding} shows the t-SNE and PCA embedding visualization. In comparison with the supervised trained models' t-SNE graph, naive MOCO learning also has difficulty distinguishing the CAS and CAE cells. When PCA dimensionality reduction is used, the model shows significantly worse performance in encoding different classes of images with different embeddings. Apart from the adipose cells, all the rest image categories are encoded to an embedding region that significantly overlaps with at least one other image category's embedding region. \\
+Finally, we present the embedding distribution and confusion matrix learned by standard MOCO learning. We select a model with 0.8379 F1 score trained using the above hyperparameters and epoch numbers. Figure\ref{fig:moco_embedding} shows the t-SNE and PCA embedding visualization. In comparison with the supervised trained models' t-SNE graph, standard MOCO learning also has difficulty distinguishing the CAS and CAE cells. When PCA dimensionality reduction is used, the model shows significantly worse performance in encoding different classes of images with different embeddings. Apart from the adipose cells, all the rest image categories are encoded to an embedding region that significantly overlaps with at least one other image category's embedding region. \\
 
 \begin{figure}
 \centering
@@ -801,16 +801,16 @@ Finally, we present the embedding distribution and confusion matrix learned by n
       \includegraphics[width=1.0\linewidth]{figures/76227_pca.png}
       \caption{PCA embedding visualization}
     \end{subfigure}
-    \caption{Embedding visualizations of the model trained with naive MOCO learning}
+    \caption{Embedding visualizations of the model trained with standard MOCO learning}
     \label{fig:moco_embedding}
 \end{figure}
 
 
 
 \section{Supervised MOCO training} \label{sec:supervisedMOCO_eval}
-In this session, we present the hyperparameter tuning results on the learning rates and optimizer. The rest untuned hyperparameters remain unchanged from the naive MOCO training. We then compare the embedding distribution learned by the optimum hyperparameter with that learned by the end-to-end supervised learning.\\
+In this session, we present the hyperparameter tuning results on the learning rates and optimizer. The rest untuned hyperparameters remain unchanged from the standard MOCO training. We then compare the embedding distribution learned by the optimum hyperparameter with that learned by the end-to-end supervised learning.\\
 
-The same learning rate scheduling method from naive MOCO training is used in the supervised MOCO training, where multiple stages of cosine learning rate annealing are used and the initial learning rate at the start of each stage is tuned. Each annealing stage lasts for 20 epochs. Figure \ref{fig:supervisedMOCO_pretrain_curve} shows the training and validation loss in the pretraining stage. The loss curves follow a linear decreasing trend in general, with 0.01 learning rate showing both the lowest final training and validation contrastive losses. We also notice that the training and validation losses increase significantly after the 19th epoch. Similar learning curve patterns are also present in the gradient-based MOCO training, as shown in Figure .... Considering the learning rate is the only parameter changed across different epochs, we plot the learning rates as shown by the red line in the graph. However, the learning rates in the final epochs are set to low values (0.006), which should result in a small change in the loss values. We fail to identify the exact cause of the increase in loss values and leave for further work to explore. 
+The same learning rate scheduling method from standard MOCO training is used in the supervised MOCO training, where multiple stages of cosine learning rate annealing are used and the initial learning rate at the start of each stage is tuned. Each annealing stage lasts for 20 epochs. Figure \ref{fig:supervisedMOCO_pretrain_curve} shows the training and validation loss in the pretraining stage. The loss curves follow a linear decreasing trend in general, with 0.01 learning rate showing both the lowest final training and validation contrastive losses. We also notice that the training and validation losses increase significantly after the 19th epoch. Similar learning curve patterns are also present in the gradient-based MOCO training, as shown in Figure .... Considering the learning rate is the only parameter changed across different epochs, we plot the learning rates as shown by the red line in the graph. However, the learning rates in the final epochs are set to low values (0.006), which should result in a small change in the loss values. We fail to identify the exact cause of the increase in loss values and leave for further work to explore. 
 In all the following experiments, early stopping is used to save the encoder with the lowest contrastive validation loss, before classification heads are trained on the embeddings extracted by the encoder. \\
 
 Figure \ref{fig:supervisedMOCO_mlp_curve} shows the training curves of the classification heads trained on each encoder learned with different learning rates, and Table \ref{tab:supervised_moco_lr} shows the final training and validation losses of these projection heads. The classification head training converges after around 35 epochs of training. A learning rate of 0.01 results in the lowest validation loss and thus is selected as the final learning rate hyperparameter.\\
@@ -883,7 +883,7 @@ Based on the hyperparameters selected as above, we scaled up training to 2 learn
     3 & 0.8742 \\
     \bottomrule
     \end{tabular}
-    \captionsetup{type=table}\captionof{table}{LR annealing stage number hyperparameter tuning results for naive MOCO training. A single LR annealing stage consists of 20 epochs of training}
+    \captionsetup{type=table}\captionof{table}{LR annealing stage number hyperparameter tuning results for standard MOCO training. A single LR annealing stage consists of 20 epochs of training}
     \label{tab:supervisedMOCO_multistage}
 \end{table}
 
@@ -904,7 +904,7 @@ Based on the hyperparameters selected as above, we scaled up training to 2 learn
     \label{tab:supervisedMOCO_final}
 \end{table}
 
-In addition, we report the 3 models' confusion matrix and per-class metric scores in Figure \ref{fig:supervisedMOCO_cm} and Table \ref{tab:supervisedMOCO_preci_recall}. In contrast to the naive MOCO training, supervised moco training results in insignificant differences in the per-class precision and recall values. 7 out of 9 classes have precision scores within the $\pm 0.035$ range of the supervised baseline. The smooth muscle category is the only category with recall value lower by more than 0.05 than the supervised baseline. Similar to the naive MOCO training, the CAS category has the most significant decrease in the precision score ($-0.0356$) and increase in the recall score ($+0.1048$).\\
+In addition, we report the 3 models' confusion matrix and per-class metric scores in Figure \ref{fig:supervisedMOCO_cm} and Table \ref{tab:supervisedMOCO_preci_recall}. In contrast to the standard MOCO training, supervised moco training results in insignificant differences in the per-class precision and recall values. 7 out of 9 classes have precision scores within the $\pm 0.035$ range of the supervised baseline. The smooth muscle category is the only category with recall value lower by more than 0.05 than the supervised baseline. Similar to the standard MOCO training, the CAS category has the most significant decrease in the precision score ($-0.0356$) and increase in the recall score ($+0.1048$).\\
 
 \begin{figure}
     \centering
@@ -959,9 +959,9 @@ Qualitatively, we compare the embedding distribution learned by supervised MOCO 
 \end{figure}
 
 \section{Gradient-based perturbation MOCO} \label{sec:gradientMOCO_eval}
-As explained in Section \ref{sec:gradcamMOCO}, we experiment on both GradCAM-based MOCO implementation and compare the training curves with the naive MOCO learning. We then repeat experiments on the more optimal implementation and compare the performance with both the supervised baseline and the naive MOCO implementation.\\ 
+As explained in Section \ref{sec:gradcamMOCO}, we experiment on both GradCAM-based MOCO implementation and compare the training curves with the standard MOCO learning. We then repeat experiments on the more optimal implementation and compare the performance with both the supervised baseline and the standard MOCO implementation.\\ 
 
-Figure \ref{fig:gradcam1_curve} shows the learning curves of implementation 1, which masks the region that positively affects the contrastive loss. Note that the validation contrastive loss is calculated using the same method as the naive MOCO training, i.e. the contrastive loss between the positive pair generated by image augmentation instead of the GradCam-based perturbation. In the first 40 epochs, the GradCAM-based MOCO validation losses decrease significantly faster and achieve lower values than the naive MOCO training. Among the learning rates in $\{0.005, 0.01, 0.05, 0.1\}$, 0.01 and 0.05 learning rates achieve the lowest validation losses. However, in the next 40 epochs, the differences between validation losses become smaller, before the naive MOCO's validation loss decreases to a lower value than that of the GradCAM-based MOCO training. To verify if the large learning values result in the suboptimal final validation loss, we further experiment with using a smaller learning rate in the last 20 epochs based on the model trained for 60 epochs with a 0.01 learning rate. As shown by the green line in Figure \ref{fig:gradcam1_curve}, using a 0.005 learning rate results in a slower model convergence speed, and a higher validation loss at the end of the training. \\
+Figure \ref{fig:gradcam1_curve} shows the learning curves of implementation 1, which masks the region that positively affects the contrastive loss. Note that the validation contrastive loss is calculated using the same method as the standard MOCO training, i.e. the contrastive loss between the positive pair generated by image augmentation instead of the GradCam-based perturbation. In the first 40 epochs, the GradCAM-based MOCO validation losses decrease significantly faster and achieve lower values than the standard MOCO training. Among the learning rates in $\{0.005, 0.01, 0.05, 0.1\}$, 0.01 and 0.05 learning rates achieve the lowest validation losses. However, in the next 40 epochs, the differences between validation losses become smaller, before the standard MOCO's validation loss decreases to a lower value than that of the GradCAM-based MOCO training. To verify if the large learning values result in the suboptimal final validation loss, we further experiment with using a smaller learning rate in the last 20 epochs based on the model trained for 60 epochs with a 0.01 learning rate. As shown by the green line in Figure \ref{fig:gradcam1_curve}, using a 0.005 learning rate results in a slower model convergence speed, and a higher validation loss at the end of the training. \\
 
 \begin{figure}
     \centering
@@ -970,14 +970,14 @@ Figure \ref{fig:gradcam1_curve} shows the learning curves of implementation 1, w
     \label{fig:gradcam1_curve}
 \end{figure}
 
-In addition, we experiment with if the naive MOCO training could benefit from the low validation loss achieved by the GradCAM-based MOCO training. As shown by the red line in Figure \ref{fig:gradcam1_curve}, when performing naive MOCO training for 20 more epochs using the optimum hyperparameters found in Section \ref{sec:naiveMOCO_eval}, the model fails to show further improvement, and converges to validation loss higher than the value achieved by the naive MOCO training. As a result, we conclude that masking the image regions that positively affect the contrastive loss is not a suitable pretext function in this task. The pretext function is neither capable of helping the model converge to a more optimum result, nor helping the model converge to a comparable result with less epoch number. \\
+In addition, we experiment with if the standard MOCO training could benefit from the low validation loss achieved by the GradCAM-based MOCO training. As shown by the red line in Figure \ref{fig:gradcam1_curve}, when performing standard MOCO training for 20 more epochs using the optimum hyperparameters found in Section \ref{sec:naiveMOCO_eval}, the model fails to show further improvement, and converges to validation loss higher than the value achieved by the standard MOCO training. As a result, we conclude that masking the image regions that positively affect the contrastive loss is not a suitable pretext function in this task. The pretext function is neither capable of helping the model converge to a more optimum result, nor helping the model converge to a comparable result with less epoch number. \\
 
 The learning curves of implementation 2 are shown in Figure .... 
 
 
 \chapter{Conclusion and further work}
 
-In this project, we evaluated the difference in embedding quality between the supervised-trained model and the model trained using naive MOCO, supervised MOCO and gradient-based perturbation MOCO. In conclusion, .... \\
+In this project, we evaluated the difference in embedding quality between the supervised-trained model and the model trained using standard MOCO, supervised MOCO and gradient-based perturbation MOCO. In conclusion, .... \\
 
 Due to time and hardware constraints, various further experiments could not be carried out. As a result, we list the problems worth exploring here for future research. 
 \begin{itemize}
