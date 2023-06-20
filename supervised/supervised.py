@@ -86,7 +86,7 @@ mem_report()
 EPOCH_NUM = 20
 BATCH_SIZE = 128
 LOAD_MODEL = ""
-# LOAD_MODEL = ""
+# LOAD_MODEL = "73657_epoch20_shuffledFalse_lr0.1-0.1_linear_on-pretrainTrue_aug-colourTrue_optimizerAdam_naive-resnetFalse"
 SHUFFLED_SET = False
 # OPTIMISER = "SGD"
 OPTIMISER = "Adam"

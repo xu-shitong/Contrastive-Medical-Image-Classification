@@ -54,7 +54,7 @@ def mem_report():
 
 EPOCH_NUM = 0
 BATCH_SIZE = 112
-LOAD_MODEL = "76305_epochs20_early-stopFalse_supervisedFalse_shuffledFalse_load76227_lr-pretrain0.1-0.1-linear-decay-12-16-head0.01_aug-colourTrue_optimizer-pretrainSGD-headAdam_remove-mlpTrue"
+LOAD_MODEL = "76994_epochs20_early-stopFalse_supervisedFalse_shuffledFalse_load76876_lr-pretrain0.05-0.05-linear-decay-12-16-head0.01_att-infomask-8-8_aug-colourTrue_optimizer-pretrainAdam-headAdam_remove-mlpTrue"
 SHUFFLED_SET = False
 LEARNING_RATE = 0.1
 END_LR = 0.1
@@ -73,7 +73,7 @@ COLOUR_AUG = True
 PRETRAIN_OPTIMISER = "SGD"
 # PRETRAIN_OPTIMISER = "Adam"
 # PRETRAIN_OPTIMISER = "AdamW"
-HEAD_LR = 0.0005
+HEAD_LR = 0.01
 # HEAD_OPTIMISER = "SGD"
 HEAD_OPTIMISER = "Adam"
 # HEAD_OPTIMISER = "AdamW"
@@ -129,6 +129,45 @@ class ProgressMeter(object):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+
+class GradCAMedResnet50(nn.Module):
+  def __init__(self, moco_model):
+    super(GradCAMedResnet50, self).__init__()
+    
+    self.mlp = nn.Sequential(*list(moco_model.children())[-1])
+    self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+    self.features_conv = nn.Sequential(*list(moco_model.children())[:-2])
+    
+    self.gradients = None
+    self.activations = None
+  
+  def parameters(self):
+    return list(self.features_conv.parameters()) + list(self.mlp.parameters())
+  
+  def activations_hook(self, grad):
+    self.gradients = grad
+  
+  def forward(self, x):
+    
+    x = self.features_conv(x)
+    
+    # register the hook
+    if x.requires_grad:
+        h = x.register_hook(self.activations_hook)
+        self.activations = x.detach().clone()
+    
+    x = self.avgpool(x)
+    x = self.mlp(x.squeeze())
+    
+    return x
+  
+  # method for the gradient extraction
+  def get_activations_gradient(self):
+    return self.gradients
+  
+  # method for the activation exctraction
+  def get_activations(self, x):
+    return self.activations
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -319,6 +358,7 @@ def main_worker(rank, world_size, args):
 
   model = model.to(rank)
   model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+  model.module.encoder_q = GradCAMedResnet50(model.module.encoder_q)
   if LOAD_MODEL != '':
       model.load_state_dict(torch.load(LOAD_MODEL + ".pickle"))
 
@@ -502,7 +542,7 @@ def mlp_training(args, model, summary):
       head_train_loader = extract_data(eval_loader)
       head_val_loader = extract_data(eval_val_loader)
 
-      classification_head = nn.Sequential(nn.Linear(EMB_SIZE, 1024), nn.Linear(1024, 512), nn.Linear(512, 9)).cuda(args.gpu)      
+      classification_head = nn.Linear(EMB_SIZE, 9).cuda(args.gpu)
  
       if HEAD_OPTIMISER == "SGD":
           head_optimizer = torch.optim.SGD(classification_head.parameters(), HEAD_LR, momentum=0.9, weight_decay=1e-4)
